@@ -30,6 +30,9 @@ let muted = store.get('muted', false);
 let faceImg = null;
 let tool = 'hand';
 let earnFrac = 0, idleTimer = 0;
+// Pain meter: fills slowly with damage to Arham; when full, bucks are doubled while it drains.
+const EARN_RATE = .06, METER_RATE = .1, BONUS_TIME = 30;
+let painMeter = store.get('meter', 0), bonusT = store.get('bonusT', 0), meterSaveT = 0;
 let shake = 0, flash = 0, flashColor = '#fff', time = 0;
 let props = [], parts = [], floorStains = [], wallMarks = [], bolts = [], fists = [];
 let arham = null, boodie = null;
@@ -214,9 +217,28 @@ function hurt(B, amount, kind = 'hurt') {
   B.sinceHurt = 0;
   if (B.kind === 'boodie') { koBoodie(B); return; }
   idleTimer = 0;
-  earnFrac += amount * .6;
+  earnFrac += amount * EARN_RATE * (bonusT > 0 ? 2 : 1);
+  if (bonusT <= 0) {
+    painMeter = Math.min(100, painMeter + amount * METER_RATE);
+    if (painMeter >= 100) startBonus();
+  }
   if (earnFrac >= 1) { const n = Math.floor(earnFrac); earnFrac -= n; addBucks(n); }
   if (amount > 1.5) say(B, kind);
+}
+function startBonus() {
+  bonusT = BONUS_TIME; painMeter = 100;
+  sfx('buy'); toast(`Pain meter full! 2X bucks for ${BONUS_TIME} seconds! 💰💰`, 2500);
+  popText(W / 2, FLOOR * .35, '2X BUCKS!', '#ffd84d', 56);
+}
+function updateMeter(dt) {
+  if (bonusT > 0) {
+    bonusT = Math.max(0, bonusT - dt);
+    painMeter = 100 * bonusT / BONUS_TIME;
+  }
+  $('meterFill').style.width = painMeter.toFixed(1) + '%';
+  const on = bonusT > 0, m = $('meter');
+  if (m.classList.contains('bonus') !== on) { m.classList.toggle('bonus', on); $('meterTag').textContent = on ? '2X' : '1X'; }
+  if ((meterSaveT -= dt) <= 0) { meterSaveT = 2; store.set('meter', painMeter); store.set('bonusT', bonusT); }
 }
 function koBoodie(B) {
   if (B.ko) return;
@@ -685,6 +707,7 @@ function collideBodies(A, B) {
 function step(dt) {
   time += dt;
   const G = U * .0095;
+  updateMeter(dt);
   idleTimer += dt;
   if (idleTimer > 7) { idleTimer = 0; if (!boodieActive()) say(arham, 'idle', true); }
   if (pointer.down && tool === 'fire') doFire(dt);

@@ -85,3 +85,20 @@ html, body {
 [hidden] { display: none !important; }
 .tool.busy { background: #ff4d5e; color: #fff; animation: none; }
 .tool.busy .ic { filter: saturate(.6); }
+
+#meter {
+  position: fixed; left: 12px; top: calc(62px + env(safe-area-inset-top, 0px)); display: flex; align-items: center; gap: 6px;
+  pointer-events: auto; font-weight: 900; color: #fff; text-shadow: 0 2px 0 #000; font-size: 13px; letter-spacing: 1px;
+}
+#meter .bar {
+  width: min(180px, 40vw); height: 16px; background: #2a1d3a; border: 3px solid #000; border-radius: 999px; overflow: hidden;
+  box-shadow: 0 3px 0 #000;
+}
+#meterFill { height: 100%; width: 0%; background: linear-gradient(90deg, #ffb703, #fb5607, #e5383b); transition: width .2s; }
+#meterTag {
+  background: #555; border: 2px solid #000; border-radius: 8px; padding: 1px 6px; font-size: 12px; letter-spacing: 0;
+}
+#meter.bonus #meterFill { background: linear-gradient(90deg, #ffe066, #ffd84d, #fff3a3); }
+#meter.bonus #meterTag { background: #ffd84d; color: #5a3b00; text-shadow: none; animation: throb .6s infinite alternate; }
+@keyframes throb { from { transform: scale(1); } to { transform: scale(1.2); } }
+@media (max-width: 560px) { #meter { top: calc(52px + env(safe-area-inset-top, 0px)); } }
