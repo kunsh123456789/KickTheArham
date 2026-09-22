@@ -981,7 +981,9 @@ function loadFace(src) {
   img.onload = () => { faceImg = img; $('btnNoFace').hidden = false; };
   img.src = src;
 }
-$('btnName').onclick = () => { const n = prompt('Name your buddy:', buddyName); if (n !== null) setName(n); };
+$('btnName').onclick = () => { $('nameField').value = buddyName; $('nameBox').hidden = false; $('nameField').focus(); $('nameField').select(); };
+$('nameCancel').onclick = () => { $('nameBox').hidden = true; };
+$('nameBox').onsubmit = e => { e.preventDefault(); setName($('nameField').value); $('nameBox').hidden = true; };
 $('btnFace').onclick = () => $('faceInput').click();
 $('faceInput').onchange = e => {
   const f = e.target.files[0]; if (!f) return;
