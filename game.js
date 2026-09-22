@@ -248,11 +248,11 @@ const LINES = {
     grab: ['Put me down!', 'Wheee!', 'Whoa!', 'Careful!', "I'm flying!"],
     idle: ['Is that all you got?', "I'm bored...", 'Come on, hit me!', '{n} is invincible!', 'Hello? Anyone there?', '*yawn*', "You can't hurt me!", 'Nice room, huh?'],
     up: ['Ha! Still standing!', "Can't keep me down!", 'That tickled.', "I'm fine. Totally fine."],
-    boodie: ['Boodie, NO!', 'Not you again!', 'Why are you like this?!', 'Truce? TRUCE?!', 'Ow! Boodie!'],
+    boodie: ['Boodie, NO!', 'Not you again!', "I'm NOT a perv!", 'Why are you like this?!', 'Who are you calling a perv?!', 'Truce? TRUCE?!', 'Ow! Boodie!'],
   },
   boodie: {
-    spawn: ["Boodie's here!", 'Hiii {n}!', 'Time for a beatdown!', 'Did someone call Boodie?'],
-    attack: ['Take that!', 'Hi-yah!', 'Boodie smash!', 'Stay down!', 'Ha!', 'Eat this!', 'Too slow!', 'Hehe!'],
+    spawn: ["Boodie's here!", 'Hiii {n}!', 'Time for a beatdown!', 'Did someone call Boodie?', 'Where is that perv {n}?!', 'You again, perv?'],
+    attack: ['Take that, perv!', 'PERV!', 'Hi-yah!', 'Stay down, perv!', '{n} is such a perv!', 'Eat this, perv!', 'Boodie smash!', 'Ew, perv!', 'Too slow, perv!', 'Stop staring, perv!'],
     ko: ['Owie!!', 'Not fair!', 'Hey! Rude!', 'I was winning!', 'Boodie down...'],
   },
 };
@@ -621,7 +621,7 @@ function boodieAI(B, dt) {
   if (!ai.atk && ai.cd <= 0 && Math.abs(goal - ai.x) < u * .35) {
     const type = pick(aDown ? ['stomp', 'stomp', 'kick', 'jab'] : ['jab', 'cross', 'slap', 'kick', 'kick', 'headbutt']);
     ai.atk = { type, t: 0, hit: false, ...ATTACKS[type] };
-    if (Math.random() < .35) say(B, 'attack');
+    if (Math.random() < .5) say(B, 'attack');
   }
   if (ai.atk) {
     const a = ai.atk, j = attackJoints(s, a), p = a.t / a.dur;
