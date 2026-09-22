@@ -83,3 +83,5 @@ html, body {
 #nameBox button { font: inherit; padding: 8px 14px; border: 3px solid #000; border-radius: 10px; background: #eee; cursor: pointer; }
 #nameBox button[type=submit] { background: #ffd84d; }
 [hidden] { display: none !important; }
+.tool.busy { background: #ff4d5e; color: #fff; animation: none; }
+.tool.busy .ic { filter: saturate(.6); }
