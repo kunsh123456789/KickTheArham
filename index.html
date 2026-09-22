@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Kick The Arham</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="top">
+  <div id="bucks" title="Bucks">💰 <span id="bucksVal">0</span></div>
+  <div id="title">Kick The <b id="nameLabel">Arham</b></div>
+  <div class="btns">
+    <button id="btnName" title="Rename buddy">✏️</button>
+    <button id="btnFace" title="Use a photo as the face">📷</button>
+    <button id="btnNoFace" title="Remove photo face" hidden>🙂</button>
+    <button id="btnMute" title="Sound on/off">🔊</button>
+    <button id="btnClear" title="Clear props and marks">🧹</button>
+    <button id="btnReset" title="Reset buddy">🔄</button>
+  </div>
+  <input type="file" id="faceInput" accept="image/*" hidden>
+</div>
+
+<div id="tools"></div>
+<div id="toast"></div>
+
+<script src="game.js"></script>
+</body>
+</html>
