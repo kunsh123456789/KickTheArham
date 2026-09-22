@@ -20,5 +20,6 @@ To host it, push to GitHub Pages or any static host.
 - **Pain meter**: fills slowly as Arham takes damage; when full, bucks are doubled for 30 seconds while it drains
 - Expressions, speech bubbles, bruises, cuts, bullet holes, scorch marks, screen shake
 - Synthesized sound effects (Web Audio API)
+- 🔐 **Vault**: enter the developer password for infinite money (can be turned off again)
 - ✏️ Rename the buddy, 📷 use any photo as his face
 - Progress (bucks, unlocks, name, face) is saved in `localStorage`

@@ -24,6 +24,11 @@ let bg = null;
 
 // ---------- state ----------
 let bucks = store.get('bucks', 60);
+// Vault: the developer password turns on infinite money.
+const VAULT_PASSWORD = 'Viboobs';
+let infinite = store.get('infinite', false);
+const canAfford = price => infinite || bucks >= price;
+const showBucks = () => { $('bucksVal').textContent = infinite ? '∞' : bucks; };
 let unlocked = new Set(store.get('unlocked', ['hand', 'punch']));
 let buddyName = store.get('name', 'Arham');
 let muted = store.get('muted', false);
@@ -311,7 +316,7 @@ function koBoodie(B) {
 let bucksPulseT = 0;
 function addBucks(n) {
   bucks += n;
-  $('bucksVal').textContent = bucks;
+  showBucks();
   store.set('bucks', bucks);
   const el = $('bucks'); el.classList.add('pulse');
   clearTimeout(bucksPulseT); bucksPulseT = setTimeout(() => el.classList.remove('pulse'), 120);
@@ -1870,10 +1875,11 @@ function renderShop() {
 function buyOrEquip(t) {
   initAudio();
   if (!unlocked.has(t.id)) {
-    if (bucks < t.price) { sfx('deny'); keeperSay('broke'); return; }
-    bucks -= t.price; unlocked.add(t.id);
+    if (!canAfford(t.price)) { sfx('deny'); keeperSay('broke'); return; }
+    if (!infinite) bucks -= t.price;
+    unlocked.add(t.id);
     store.set('unlocked', [...unlocked]); store.set('bucks', bucks);
-    $('bucksVal').textContent = bucks;
+    showBucks();
     sfx('buy'); keeperSay('buy');
     if (!t.spawn) { tool = t.id; }
     buildTools(); renderShop();
@@ -1914,9 +1920,9 @@ function refreshTools() {
   refreshAffordable();
 }
 function refreshAffordable() {
-  const any = TOOLS.some(t => t.phase <= phasesUnlocked && !unlocked.has(t.id) && bucks >= t.price);
+  const any = TOOLS.some(t => t.phase <= phasesUnlocked && !unlocked.has(t.id) && canAfford(t.price));
   const s = document.querySelector('.tool.shopbtn'); if (s) s.classList.toggle('affordable', any);
-  for (const c of document.querySelectorAll('#shopGrid .item:not(.owned)')) c.classList.toggle('can', bucks >= +c.dataset.price);
+  for (const c of document.querySelectorAll('#shopGrid .item:not(.owned)')) c.classList.toggle('can', canAfford(+c.dataset.price));
 }
 function selectTool(t) {
   initAudio();
@@ -2061,7 +2067,35 @@ $('btnReset').onclick = () => {
 
 // ---------- boot ----------
 window.addEventListener('resize', resize);
-$('bucksVal').textContent = bucks;
+showBucks();
+function openVault() {
+  $('vaultField').value = ''; $('vaultMsg').textContent = '';
+  $('vaultOn').hidden = !infinite; $('vaultLocked').hidden = infinite;
+  $('vaultBox').hidden = false;
+  if (!infinite) $('vaultField').focus();
+}
+$('btnVault').onclick = () => { initAudio(); openVault(); };
+$('vaultCancel').onclick = $('vaultClose').onclick = () => { $('vaultBox').hidden = true; };
+$('vaultBox').onsubmit = e => {
+  e.preventDefault();
+  if (infinite) return;
+  if ($('vaultField').value === VAULT_PASSWORD) {
+    infinite = true; store.set('infinite', true);
+    showBucks(); refreshAffordable(); if (shopOpen) renderShop();
+    $('vaultBox').hidden = true;
+    sfx('buy'); toast('🔓 Vault opened! Infinite money unlocked 💰', 2500);
+    popText(W / 2, FLOOR * .35, '∞ BUCKS!', '#ffd84d', 56);
+  } else {
+    sfx('deny'); $('vaultMsg').textContent = 'Wrong password.';
+    const b = $('vaultBox'); b.classList.remove('shake'); void b.offsetWidth; b.classList.add('shake');
+    $('vaultField').select();
+  }
+};
+$('vaultOff').onclick = () => {
+  infinite = false; store.set('infinite', false);
+  showBucks(); refreshAffordable(); if (shopOpen) renderShop();
+  $('vaultBox').hidden = true; toast('Vault locked. Back to earning bucks the hard way.');
+};
 $('btnMute').textContent = muted ? '🔇' : '🔊';
 setName(buddyName);
 loadFace(store.get('face', null));

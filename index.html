@@ -13,6 +13,7 @@
   <div id="bucks" title="Bucks">💰 <span id="bucksVal">0</span></div>
   <div id="title">Kick The <b id="nameLabel">Arham</b></div>
   <div class="btns">
+    <button id="btnVault" title="Vault">🔐</button>
     <button id="btnName" title="Rename buddy">✏️</button>
     <button id="btnFace" title="Use a photo as the face">📷</button>
     <button id="btnNoFace" title="Remove photo face" hidden>🙂</button>
@@ -31,6 +32,20 @@
 
 <div id="tools"></div>
 <div id="toast"></div>
+
+<form id="vaultBox" class="dialog" hidden>
+  <div class="vtitle">🔐 The Vault</div>
+  <div id="vaultLocked">
+    <label for="vaultField">Enter the developer password</label>
+    <input id="vaultField" type="password" autocomplete="off">
+    <div id="vaultMsg" class="vmsg"></div>
+    <div class="row"><button type="button" id="vaultCancel">Cancel</button><button type="submit">Unlock</button></div>
+  </div>
+  <div id="vaultOn" hidden>
+    <p>Infinite money is <b>on</b>. Buy whatever you like.</p>
+    <div class="row"><button type="button" id="vaultOff">Turn off</button><button type="button" id="vaultClose">Close</button></div>
+  </div>
+</form>
 
 <div id="shopScrim" hidden></div>
 <aside id="shop" class="ph1" aria-label="Shop">
