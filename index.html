@@ -31,6 +31,18 @@
 
 <div id="tools"></div>
 <div id="toast"></div>
+
+<div id="shopScrim" hidden></div>
+<aside id="shop" class="ph1" aria-label="Shop">
+  <div class="shead">
+    <canvas id="keeperCv" width="280" height="280"></canvas>
+    <div class="kinfo"><div class="kname" id="keeperName"></div><div class="ksay" id="keeperSay"></div></div>
+    <button id="shopClose" aria-label="Close shop">✕</button>
+  </div>
+  <nav id="phaseTabs"></nav>
+  <div class="ptitle"><b id="phaseName"></b><span id="phaseDesc"></span></div>
+  <div id="shopGrid"></div>
+</aside>
 <form id="nameBox" hidden>
   <label for="nameField">Name your buddy</label>
   <input id="nameField" maxlength="16" autocomplete="off">

@@ -55,7 +55,7 @@ html, body {
 .tool.affordable { animation: wiggle 1.2s infinite; }
 @keyframes wiggle { 0%,100% { rotate: 0deg; } 10% { rotate: -6deg; } 20% { rotate: 6deg; } 30% { rotate: 0deg; } }
 
-#toast {
+#toast { z-index: 30;
   position: fixed; left: 50%; top: 64px; transform: translateX(-50%) translateY(-20px);
   background: rgba(0,0,0,.8); color: #fff; padding: 10px 18px; border-radius: 12px;
   font-weight: 700; opacity: 0; transition: .25s; pointer-events: none; text-align: center;
@@ -102,3 +102,40 @@ html, body {
 #meter.bonus #meterTag { background: #ffd84d; color: #5a3b00; text-shadow: none; animation: throb .6s infinite alternate; }
 @keyframes throb { from { transform: scale(1); } to { transform: scale(1.2); } }
 @media (max-width: 560px) { #meter { top: calc(52px + env(safe-area-inset-top, 0px)); } }
+
+#shopScrim { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 19; }
+#shop {
+  position: fixed; top: 0; left: 0; bottom: 0; width: min(430px, 92vw); z-index: 20;
+  transform: translateX(-105%); transition: transform .35s cubic-bezier(.2,.9,.3,1.15);
+  display: flex; flex-direction: column; gap: 10px; color: #fff; overflow: hidden;
+  background: var(--sb); border-right: 4px solid #000; box-shadow: 8px 0 0 rgba(0,0,0,.35);
+  padding: calc(12px + env(safe-area-inset-top, 0px)) 14px calc(12px + env(safe-area-inset-bottom, 0px));
+  --sb: linear-gradient(#3a2f6b, #211a40); --acc: #ffd84d;
+}
+#shop.open { transform: none; }
+#shop.ph2 { --sb: linear-gradient(#8a2a0e, #2b0a05); --acc: #ff9f1c; }
+#shop.ph3 { --sb: repeating-linear-gradient(135deg, #3f4a2e 0 22px, #37412a 22px 44px); --acc: #d4e09b; }
+#shop.ph4 { --sb: radial-gradient(circle at 30% 10%, #3b2a7a, #0b0620 70%); --acc: #72efdd; }
+#shop.ph5 { --sb: linear-gradient(160deg, #ff5d9e, #7b2cbf); --acc: #fff275; }
+.shead { display: flex; gap: 10px; align-items: center; }
+#keeperCv { width: 110px; height: 110px; flex: none; background: rgba(255,255,255,.12); border: 3px solid #000; border-radius: 16px; }
+.kinfo { flex: 1; min-width: 0; }
+.kname { font-weight: 900; font-size: 15px; color: var(--acc); text-shadow: 0 2px 0 #000; }
+.ksay { margin-top: 6px; background: #fff; color: #111; border: 3px solid #000; border-radius: 12px; padding: 7px 10px; font-weight: 700; font-size: 13px; min-height: 42px; }
+#shopClose { align-self: flex-start; width: 36px; height: 36px; flex: none; border-radius: 10px; border: 3px solid #000; background: #fff; font-size: 18px; cursor: pointer; box-shadow: 0 3px 0 #000; }
+#phaseTabs { display: flex; gap: 6px; }
+.ptab { flex: 1; height: 38px; border: 3px solid #000; border-radius: 10px; background: rgba(255,255,255,.9); font: inherit; font-weight: 900; font-size: 15px; cursor: pointer; box-shadow: 0 3px 0 #000; color: #222; }
+.ptab.on { background: var(--acc); transform: translateY(-2px); box-shadow: 0 5px 0 #000; }
+.ptab.locked { background: #555; color: #bbb; }
+.ptitle b { display: block; font-size: 17px; color: var(--acc); text-shadow: 0 2px 0 #000; }
+.ptitle span { font-size: 12px; opacity: .9; }
+#shopGrid { flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 4px 2px 12px; align-content: start; }
+.item { background: #fff; color: #222; border: 3px solid #000; border-radius: 14px; box-shadow: 0 4px 0 #000; padding: 8px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 3px; }
+.item .iic { font-size: 34px; line-height: 1.1; }
+.item .inm { font-weight: 900; font-size: 14px; }
+.item .ids { font-size: 11px; color: #555; flex: 1; }
+.ibuy { width: 100%; margin-top: 4px; border: 3px solid #000; border-radius: 10px; padding: 6px; font: inherit; font-weight: 900; font-size: 14px; background: #ddd; color: #555; cursor: pointer; }
+.item.can .ibuy { background: #ffd84d; color: #3b2a00; }
+.item.owned .ibuy { background: #80ed99; color: #103b1c; }
+.tool.shopbtn { background: #ffd84d; }
+.tool.shopbtn i { position: absolute; top: -8px; right: -8px; background: #ff2b2b; color: #fff; font-style: normal; font-size: 10px; border: 2px solid #000; border-radius: 999px; padding: 1px 5px; }
