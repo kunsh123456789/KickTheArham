@@ -38,7 +38,7 @@ let earnFrac = 0, idleTimer = 0;
 // Pain meter: fills slowly with damage to Arham; when full, bucks are doubled while it drains.
 const EARN_RATE = .06, METER_RATE = .1, BONUS_TIME = 30;
 let painMeter = store.get('meter', 0), bonusT = store.get('bonusT', 0), meterSaveT = 0;
-let shake = 0, flash = 0, flashColor = '#fff', time = 0, hurtFx = 0;
+let shake = 0, flash = 0, flashColor = '#fff', time = 0, hurtFx = 0, whiteT = 0;
 let props = [], parts = [], floorStains = [], wallMarks = [], bolts = [], fists = [];
 let arham = null, boodie = null;
 let ents = [], gravDir = 1, flipT = 0, laserBeam = null, smgCd = 0;
@@ -109,7 +109,7 @@ function makeBody(kind, cx) {
   const look = LOOKS[kind], u = U * look.scale;
   const B = {
     kind, u, colors: look.colors, decals: [], pain: 0, char: 0, onFire: 0, zapped: 0, stand: 1, sinceHurt: 10,
-    bubble: null, voiceCd: 0, blink: 0, ko: false, koT: 0, bleed: 0, thrownT: 0, targets: null,
+    bubble: null, voiceCd: 0, blink: 0, ko: false, koT: 0, bleed: 0, swell: 0, thrownT: 0, targets: null,
     ai: { x: cx, side: 1, cd: 1, phase: 0, atk: null },
   };
   B.P = POSE.map((q, i) => {
@@ -245,14 +245,16 @@ const LINES = {
     boom: ['KABOOM?!', 'My ears!!', 'Who did that?!', "I'm seeing stars..."],
     fire: ['Hot hot hot!', "I'm toast!", 'Water! WATER!', 'Crispy...'],
     zap: ['BZZZT!', 'I can taste colors!', 'Shocking!'],
+    bees: ['MY FACE!', 'Bees?! BEES!', "I can't see!", 'Why is my face so big?!'],
     grab: ['Put me down!', 'Wheee!', 'Whoa!', 'Careful!', "I'm flying!"],
     idle: ['Is that all you got?', "I'm bored...", 'Come on, hit me!', '{n} is invincible!', 'Hello? Anyone there?', '*yawn*', "You can't hurt me!", 'Nice room, huh?'],
     up: ['Ha! Still standing!', "Can't keep me down!", 'That tickled.', "I'm fine. Totally fine."],
-    boodie: ['Boodie, NO!', 'Not you again!', "I'm NOT a perv!", 'Why are you like this?!', 'Who are you calling a perv?!', 'Truce? TRUCE?!', 'Ow! Boodie!'],
+    boodie: ['Boodie, NO!', 'Not you again!', "I'm NOT a perv!", 'Why are you like this?!', 'Truce? TRUCE?!', 'Ow! Boodie!'],
   },
   boodie: {
-    spawn: ["Boodie's here!", 'Hiii {n}!', 'Time for a beatdown!', 'Did someone call Boodie?', 'Where is that perv {n}?!', 'You again, perv?'],
-    attack: ['Take that, perv!', 'PERV!', 'Hi-yah!', 'Stay down, perv!', '{n} is such a perv!', 'Eat this, perv!', 'Boodie smash!', 'Ew, perv!', 'Too slow, perv!', 'Stop staring, perv!'],
+    spawn: ["Boodie's here!", 'Hiii {n}!', 'Time for a beatdown!', 'Did someone call Boodie?', 'Where is that perv {n}?!'],
+    // about 1 in 5 lines calls him a perv
+    attack: ['Take that!', 'Hi-yah!', 'Boodie smash!', 'Stay down!', 'Ha!', 'Eat this!', 'Too slow!', 'Hehe!', 'Take that, perv!', '{n} is such a perv!'],
     ko: ['Owie!!', 'Not fair!', 'Hey! Rude!', 'I was winning!', 'Boodie down...'],
   },
 };
@@ -1067,6 +1069,8 @@ function releaseBees(x, y) {
       if (e.t > 0 && d < p.r + 6 && b.cd <= 0) {
         b.cd = rand(.6, 1.1); b.tgt = (Math.random() * 14) | 0;
         hurt(arham, 1.5); addVel(p, rand(-2, 2), rand(-2, 0)); arham.stand = Math.max(0, arham.stand - .05);
+        arham.swell = Math.min(1, arham.swell + .07);
+        if (Math.random() < .25) say(arham, 'bees');
         blood(b.x, b.y, 2, .5);
         if (Math.random() < .15) popText(b.x, b.y - 10, 'STING!', '#ffd84d', 22);
       }
@@ -1115,9 +1119,16 @@ function drawNukeBomb(p) {
   ctx.fillStyle = '#111'; for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, r * .4, i * 2.09 - .5, i * 2.09 + .5); ctx.fill(); }
   ctx.restore();
 }
+const NUKE_WHITEOUT = 5, NUKE_PRIZE = 4000;
 function nukeBlast(x, y) {
   explode(x, y, Math.max(W, H) * 1.2, U * 1.5, { fire: true, text: '☢ NUKED ☢' });
   flash = 1.6; flashColor = '#ffffff'; shake = 60;
+  whiteT = NUKE_WHITEOUT + 1.2; // solid white, then fades
+  // jackpot for nuking Arham: huge for a direct hit, still big otherwise
+  const [ax, ay] = bodyCenter(arham), direct = Math.hypot(ax - x, ay - y) < U * 3;
+  const prize = (direct ? NUKE_PRIZE : NUKE_PRIZE / 4) * (bonusT > 0 ? 2 : 1);
+  addBucks(prize);
+  setTimeout(() => { popText(W / 2, FLOOR * .45, `+$${prize}${direct ? ' DIRECT HIT!' : ''}`, '#ffd84d', 52); toast(`☢ Nuked ${buddyName}: +$${prize}!`, 3000); }, NUKE_WHITEOUT * 1000);
   for (const B of bodies()) B.char = Math.min(1, B.char + .5);
   for (let i = 0; i < 70; i++) {
     const cap = i < 45;
@@ -1194,6 +1205,7 @@ function stepBody(B, dt, G) {
   if (B.bubble && (B.bubble.t -= dt) <= 0) B.bubble = null;
   B.blink -= dt; if (B.blink < -3.5 - Math.random() * 3) B.blink = .12;
   if (B.ko) B.koT += dt;
+  B.swell = Math.max(0, B.swell - dt * .012); // bee stings go down slowly (~80s from max)
   // open wounds keep dripping
   B.bleed = Math.max(0, B.bleed - dt * .025);
   if (B.bleed > .02 && Math.random() < B.bleed * .6) {
@@ -1389,7 +1401,7 @@ function step(dt) {
   bolts = bolts.filter(b => b.life > 0);
   for (const f of fists) f.t -= dt;
   fists = fists.filter(f => f.t > 0);
-  shake *= .88; flash = Math.max(0, flash - dt * 3); hurtFx = Math.max(0, hurtFx - dt * 1.2);
+  shake *= .88; flash = Math.max(0, flash - dt * 3); whiteT = Math.max(0, whiteT - dt); hurtFx = Math.max(0, hurtFx - dt * 1.2);
 }
 
 function collideWalls(B, p, detect) {
@@ -1532,6 +1544,7 @@ function draw() {
     g.addColorStop(0, 'rgba(170,0,20,0)'); g.addColorStop(1, `rgba(170,0,20,${hurtFx})`);
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
   }
+  if (whiteT > 0) { ctx.globalAlpha = Math.min(1, whiteT / 1.2); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
   if (flash > 0) { ctx.globalAlpha = Math.min(flash, .85); ctx.fillStyle = flashColor; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
 }
 
@@ -1634,7 +1647,7 @@ function drawBuddy(B) {
   drawHead(B);
 }
 function drawHead(B) {
-  const h = B.P[0], fr = frame(B, 0), R = RAD[0] * B.u;
+  const h = B.P[0], fr = frame(B, 0), R = RAD[0] * B.u * (1 + B.swell * .55);
   const girl = B.kind === 'boodie';
   ctx.save(); ctx.translate(h.x, h.y); ctx.rotate(fr.ang);
   if (girl) { // long hair behind the head
@@ -1669,6 +1682,7 @@ function drawHead(B) {
     }
     drawFace(B, R);
   }
+  if (B.swell > .03) drawSwelling(B, R);
   ctx.restore();
   drawDecals(B, f => f === 0);
   if (B.pain > 70 || B.zapped > 0 || B.ko) {
@@ -1677,6 +1691,28 @@ function drawHead(B) {
       ctx.font = `${B.u * .3}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText('⭐', h.x + Math.cos(a) * R * 1.2, h.y - R * 1.1 + Math.sin(a) * R * .3);
     }
+  }
+}
+const WELTS = [[-.5, -.3], [.45, -.42], [.08, .1], [-.32, .5], [.55, .28], [-.1, -.6], [.25, .6], [-.62, .15]];
+function drawSwelling(B, R) {
+  const s = B.swell;
+  ctx.save(); ctx.beginPath(); ctx.arc(0, 0, R, 0, 7); ctx.clip();
+  ctx.fillStyle = `rgba(230,60,70,${s * .3})`; ctx.fillRect(-R, -R, R * 2, R * 2); // puffy red flush
+  ctx.restore();
+  const n = Math.ceil(s * WELTS.length);
+  for (let i = 0; i < n; i++) {
+    const [wx, wy] = WELTS[i], r = R * (.1 + s * .07);
+    ctx.fillStyle = '#e8606a'; ctx.strokeStyle = 'rgba(120,20,30,.6)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(wx * R, wy * R, r, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.beginPath(); ctx.arc(wx * R - r * .3, wy * R - r * .3, r * .3, 0, 7); ctx.fill();
+    ctx.fillStyle = '#5a0a14'; ctx.beginPath(); ctx.arc(wx * R, wy * R, r * .15, 0, 7); ctx.fill(); // sting mark
+  }
+  if (s > .45 && !B.ko && B.pain <= 70) { // eyes puffed shut + fat lips
+    ctx.fillStyle = mix(B.colors.skin, '#e8606a', .5);
+    for (const sx of [-1, 1]) { ctx.beginPath(); ctx.ellipse(sx * R * .36, -R * .02, R * .22, R * .16, 0, 0, 7); ctx.fill(); }
+    ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = Math.max(2, R * .06); ctx.lineCap = 'round';
+    for (const sx of [-1, 1]) { ctx.beginPath(); ctx.moveTo(sx * R * .36 - R * .12, -R * .02); ctx.lineTo(sx * R * .36 + R * .12, -R * .02); ctx.stroke(); }
+    ctx.fillStyle = '#d6455a'; ctx.beginPath(); ctx.ellipse(0, R * .44, R * .24, R * .12, 0, 0, 7); ctx.fill(); ctx.stroke();
   }
 }
 function drawFace(B, R) {
@@ -2057,7 +2093,7 @@ $('shopScrim').onclick = () => openShop(false);
 $('keeperName').textContent = `${SHOPKEEPER.name}, ${SHOPKEEPER.title}`;
 $('btnNoFace').onclick = () => { store.set('face', null); loadFace(null); };
 $('btnMute').onclick = () => { muted = !muted; store.set('muted', muted); $('btnMute').textContent = muted ? '🔇' : '🔊'; initAudio(); };
-$('btnClear').onclick = () => { props = []; ents = []; gravDir = 1; flipT = 0; boodie = null; refreshTools(); for (const B of bodies()) { B.decals = []; B.bleed = 0; } floorStains = []; wallMarks = []; parts = []; grab = null; };
+$('btnClear').onclick = () => { props = []; ents = []; gravDir = 1; flipT = 0; boodie = null; refreshTools(); for (const B of bodies()) { B.decals = []; B.bleed = 0; B.swell = 0; } floorStains = []; wallMarks = []; parts = []; grab = null; };
 $('btnReset').onclick = () => {
   arham = makeBody('arham', W / 2); boodie = null;
   props = []; ents = []; gravDir = 1; flipT = 0; parts = []; floorStains = []; wallMarks = []; grab = null;
