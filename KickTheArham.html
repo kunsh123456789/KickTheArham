@@ -1,3 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Kick The Arham</title>
+<style>
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; height: 100%; overflow: hidden; background: #1b1b2f;
+  font-family: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+  user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent;
+}
+#c { position: fixed; inset: 0; width: 100vw; height: 100vh; touch-action: none; display: block; }
+
+#top {
+  position: fixed; top: 0; left: 0; right: 0; display: flex; align-items: center;
+  justify-content: space-between; gap: 8px; padding: calc(8px + env(safe-area-inset-top, 0px)) 12px 8px; pointer-events: none;
+}
+#top > * { pointer-events: auto; }
+#bucks {
+  background: #ffd84d; color: #5a3b00; font-weight: 800; font-size: 20px;
+  padding: 6px 14px; border-radius: 999px; border: 3px solid #5a3b00;
+  box-shadow: 0 3px 0 #5a3b00; min-width: 90px; transition: transform .1s;
+}
+#bucks.pulse { transform: scale(1.12); }
+#title {
+  color: #fff; font-size: 22px; font-weight: 800; letter-spacing: .5px;
+  text-shadow: 0 3px 0 #000, 0 0 12px rgba(0,0,0,.5); text-align: center; flex: 1;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#title b { color: #ff5d73; }
+.btns { display: flex; gap: 6px; }
+.btns button {
+  width: 40px; height: 40px; font-size: 20px; border-radius: 12px; cursor: pointer;
+  background: #fff; border: 3px solid #222; box-shadow: 0 3px 0 #222; padding: 0;
+}
+.btns button:active { transform: translateY(2px); box-shadow: 0 1px 0 #222; }
+
+#tools {
+  position: fixed; left: 0; right: 0; bottom: 0; display: flex; gap: 8px;
+  padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); overflow-x: auto;
+  background: linear-gradient(#2a2346, #17122b); border-top: 4px solid #000;
+  scrollbar-width: none;
+}
+#tools::-webkit-scrollbar { display: none; }
+.tool {
+  flex: 0 0 auto; width: 74px; height: 74px; border-radius: 16px; cursor: pointer;
+  background: #fff; border: 3px solid #000; box-shadow: 0 4px 0 #000;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  position: relative; font-weight: 700; font-size: 11px; color: #222; padding: 2px;
+}
+.tool .ic { font-size: 30px; line-height: 1.1; }
+.tool.active { background: #ffd84d; transform: translateY(-4px); box-shadow: 0 8px 0 #000; }
+.tool.locked { background: #8a8aa0; color: #222; }
+.tool.locked .ic { filter: grayscale(1) brightness(.6); }
+.tool .price {
+  position: absolute; bottom: -2px; left: 50%; transform: translateX(-50%);
+  background: #ffd84d; border: 2px solid #000; border-radius: 999px; padding: 0 6px;
+  font-size: 11px; white-space: nowrap;
+}
+.tool.affordable { animation: wiggle 1.2s infinite; }
+@keyframes wiggle { 0%,100% { rotate: 0deg; } 10% { rotate: -6deg; } 20% { rotate: 6deg; } 30% { rotate: 0deg; } }
+
+#toast { z-index: 30;
+  position: fixed; left: 50%; top: 64px; transform: translateX(-50%) translateY(-20px);
+  background: rgba(0,0,0,.8); color: #fff; padding: 10px 18px; border-radius: 12px;
+  font-weight: 700; opacity: 0; transition: .25s; pointer-events: none; text-align: center;
+  max-width: 90vw;
+}
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+@media (max-width: 560px) {
+  #title { font-size: 16px; }
+  #bucks { font-size: 16px; min-width: 70px; padding: 4px 10px; }
+  .btns button { width: 34px; height: 34px; font-size: 16px; border-radius: 10px; }
+  .btns { gap: 4px; }
+  .tool { width: 64px; height: 64px; }
+  .tool .ic { font-size: 26px; }
+}
+
+#nameBox {
+  position: fixed; left: 50%; top: 30%; transform: translateX(-50%); z-index: 5;
+  background: #fff; border: 3px solid #000; box-shadow: 0 6px 0 #000; border-radius: 16px;
+  padding: 16px; display: flex; flex-direction: column; gap: 10px; width: min(300px, calc(100vw - 32px));
+  font-weight: 800; color: #222;
+}
+#nameBox input { font: inherit; font-size: 18px; padding: 8px 10px; border: 3px solid #222; border-radius: 10px; }
+#nameBox .row { display: flex; gap: 8px; justify-content: flex-end; }
+#nameBox button { font: inherit; padding: 8px 14px; border: 3px solid #000; border-radius: 10px; background: #eee; cursor: pointer; }
+#nameBox button[type=submit] { background: #ffd84d; }
+[hidden] { display: none !important; }
+.tool.busy { background: #ff4d5e; color: #fff; animation: none; }
+.tool.busy .ic { filter: saturate(.6); }
+
+#meter {
+  position: fixed; left: 12px; top: calc(62px + env(safe-area-inset-top, 0px)); display: flex; align-items: center; gap: 6px;
+  pointer-events: auto; font-weight: 900; color: #fff; text-shadow: 0 2px 0 #000; font-size: 13px; letter-spacing: 1px;
+}
+#meter .bar {
+  width: min(180px, 40vw); height: 16px; background: #2a1d3a; border: 3px solid #000; border-radius: 999px; overflow: hidden;
+  box-shadow: 0 3px 0 #000;
+}
+#meterFill { height: 100%; width: 0%; background: linear-gradient(90deg, #ffb703, #fb5607, #e5383b); transition: width .2s; }
+#meterTag {
+  background: #555; border: 2px solid #000; border-radius: 8px; padding: 1px 6px; font-size: 12px; letter-spacing: 0;
+}
+#meter.bonus #meterFill { background: linear-gradient(90deg, #ffe066, #ffd84d, #fff3a3); }
+#meter.bonus #meterTag { background: #ffd84d; color: #5a3b00; text-shadow: none; animation: throb .6s infinite alternate; }
+@keyframes throb { from { transform: scale(1); } to { transform: scale(1.2); } }
+@media (max-width: 560px) { #meter { top: calc(52px + env(safe-area-inset-top, 0px)); } }
+
+#shopScrim { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 19; }
+#shop {
+  position: fixed; top: 0; left: 0; bottom: 0; width: min(430px, 92vw); z-index: 20;
+  transform: translateX(-105%); transition: transform .35s cubic-bezier(.2,.9,.3,1.15);
+  display: flex; flex-direction: column; gap: 10px; color: #fff; overflow: hidden;
+  background: var(--sb); border-right: 4px solid #000; box-shadow: 8px 0 0 rgba(0,0,0,.35);
+  padding: calc(12px + env(safe-area-inset-top, 0px)) 14px calc(12px + env(safe-area-inset-bottom, 0px));
+  --sb: linear-gradient(#3a2f6b, #211a40); --acc: #ffd84d;
+}
+#shop.open { transform: none; }
+#shop.ph2 { --sb: linear-gradient(#8a2a0e, #2b0a05); --acc: #ff9f1c; }
+#shop.ph3 { --sb: repeating-linear-gradient(135deg, #3f4a2e 0 22px, #37412a 22px 44px); --acc: #d4e09b; }
+#shop.ph4 { --sb: radial-gradient(circle at 30% 10%, #3b2a7a, #0b0620 70%); --acc: #72efdd; }
+#shop.ph5 { --sb: linear-gradient(160deg, #ff5d9e, #7b2cbf); --acc: #fff275; }
+.shead { display: flex; gap: 10px; align-items: center; }
+#keeperCv { width: 110px; height: 110px; flex: none; background: rgba(255,255,255,.12); border: 3px solid #000; border-radius: 16px; }
+.kinfo { flex: 1; min-width: 0; }
+.kname { font-weight: 900; font-size: 15px; color: var(--acc); text-shadow: 0 2px 0 #000; }
+.ksay { margin-top: 6px; background: #fff; color: #111; border: 3px solid #000; border-radius: 12px; padding: 7px 10px; font-weight: 700; font-size: 13px; min-height: 42px; }
+#shopClose { align-self: flex-start; width: 36px; height: 36px; flex: none; border-radius: 10px; border: 3px solid #000; background: #fff; font-size: 18px; cursor: pointer; box-shadow: 0 3px 0 #000; }
+#phaseTabs { display: flex; gap: 6px; }
+.ptab { flex: 1; height: 38px; border: 3px solid #000; border-radius: 10px; background: rgba(255,255,255,.9); font: inherit; font-weight: 900; font-size: 15px; cursor: pointer; box-shadow: 0 3px 0 #000; color: #222; }
+.ptab.on { background: var(--acc); transform: translateY(-2px); box-shadow: 0 5px 0 #000; }
+.ptab.locked { background: #555; color: #bbb; }
+.ptitle b { display: block; font-size: 17px; color: var(--acc); text-shadow: 0 2px 0 #000; }
+.ptitle span { font-size: 12px; opacity: .9; }
+#shopGrid { flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 4px 2px 12px; align-content: start; }
+.item { background: #fff; color: #222; border: 3px solid #000; border-radius: 14px; box-shadow: 0 4px 0 #000; padding: 8px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 3px; }
+.item .iic { font-size: 34px; line-height: 1.1; }
+.item .inm { font-weight: 900; font-size: 14px; }
+.item .ids { font-size: 11px; color: #555; flex: 1; }
+.ibuy { width: 100%; margin-top: 4px; border: 3px solid #000; border-radius: 10px; padding: 6px; font: inherit; font-weight: 900; font-size: 14px; background: #ddd; color: #555; cursor: pointer; }
+.item.can .ibuy { background: #ffd84d; color: #3b2a00; }
+.item.owned .ibuy { background: #80ed99; color: #103b1c; }
+.tool.shopbtn { background: #ffd84d; }
+.tool.shopbtn i { position: absolute; top: -8px; right: -8px; background: #ff2b2b; color: #fff; font-style: normal; font-size: 10px; border: 2px solid #000; border-radius: 999px; padding: 1px 5px; }
+
+#vaultBox {
+  position: fixed; left: 50%; top: 28%; transform: translateX(-50%); z-index: 25;
+  width: min(320px, calc(100vw - 32px)); background: #2b2d42; color: #fff; border: 3px solid #000;
+  border-radius: 16px; box-shadow: 0 6px 0 #000; padding: 16px; font-weight: 800;
+}
+#vaultBox > div { display: flex; flex-direction: column; gap: 10px; }
+#vaultBox .vtitle { font-size: 20px; color: #ffd84d; text-shadow: 0 2px 0 #000; margin-bottom: 10px; }
+#vaultBox p { margin: 0; font-weight: 600; }
+#vaultBox input { font: inherit; font-size: 18px; padding: 8px 10px; border: 3px solid #000; border-radius: 10px; letter-spacing: 2px; }
+#vaultBox .vmsg { color: #ff6b7a; min-height: 1em; font-size: 13px; }
+#vaultBox .row { display: flex; gap: 8px; justify-content: flex-end; }
+#vaultBox button { font: inherit; padding: 8px 14px; border: 3px solid #000; border-radius: 10px; background: #eee; cursor: pointer; }
+#vaultBox button[type=submit], #vaultClose { background: #ffd84d; }
+#vaultBox.shake { animation: vshake .35s; }
+@keyframes vshake { 0%,100% { transform: translateX(-50%); } 25% { transform: translateX(calc(-50% - 10px)); } 75% { transform: translateX(calc(-50% + 10px)); } }
+
+#nurseBox {
+  position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 24;
+  width: min(380px, calc(100vw - 32px)); background: linear-gradient(#ffe3ec, #ffc2d4); color: #222;
+  border: 3px solid #000; border-radius: 18px; box-shadow: 0 6px 0 #000; padding: 14px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+#nurseBox[hidden] { display: none; }
+.nhead { display: flex; gap: 10px; align-items: center; }
+#nurseCv { width: 96px; height: 96px; flex: none; background: #fff; border: 3px solid #000; border-radius: 14px; }
+#nurseBox .kname { color: #d6336c; text-shadow: none; font-size: 17px; }
+#nurseClose { align-self: flex-start; width: 34px; height: 34px; flex: none; border-radius: 10px; border: 3px solid #000; background: #fff; font-size: 16px; cursor: pointer; }
+.treat {
+  display: grid; grid-template-columns: 44px 1fr; grid-template-rows: auto auto; column-gap: 8px; text-align: left;
+  background: #fff; border: 3px solid #000; border-radius: 14px; box-shadow: 0 4px 0 #000; padding: 10px; cursor: pointer; font: inherit;
+}
+.treat:active { transform: translateY(2px); box-shadow: 0 2px 0 #000; }
+.treat span { grid-row: span 2; font-size: 32px; align-self: center; }
+.treat b { font-size: 16px; }
+.treat small { color: #555; font-size: 12px; }
+.tool.nursebtn { background: #ffc2d4; }
+
+#gate {
+  position: fixed; inset: 0; z-index: 100; background: #0b0a12; display: flex; align-items: center; justify-content: center;
+  padding: 16px; transition: opacity .45s;
+}
+#gate.open { opacity: 0; pointer-events: none; }
+#gateForm { display: flex; flex-direction: column; align-items: stretch; gap: 10px; width: min(300px, 100%); color: #cfcbe0; font-weight: 700; text-align: center; }
+#gateForm .glock { font-size: 44px; }
+#gateForm input { font: inherit; font-size: 18px; padding: 10px 12px; border-radius: 10px; border: 2px solid #3a3550; background: #16141f; color: #fff; text-align: center; letter-spacing: 3px; outline: none; }
+#gateForm input:focus { border-color: #ffd84d; }
+#gateForm button { font: inherit; font-size: 16px; padding: 10px; border-radius: 10px; border: 0; background: #ffd84d; color: #3b2a00; font-weight: 900; cursor: pointer; }
+#gateMsg { color: #ff6b7a; min-height: 1.2em; font-size: 13px; }
+#gateForm.shake { animation: gshake .35s; }
+@keyframes gshake { 0%,100% { transform: none; } 25% { transform: translateX(-10px); } 75% { transform: translateX(10px); } }
+
+</style>
+</head>
+<body>
+<div id="gate">
+  <form id="gateForm" autocomplete="off">
+    <div class="glock">🔒</div>
+    <label for="gateField">Enter password</label>
+    <input id="gateField" type="password" autocomplete="off">
+    <div id="gateMsg"></div>
+    <button type="submit">Enter</button>
+  </form>
+</div>
+
+<canvas id="c"></canvas>
+
+<div id="top">
+  <div id="bucks" title="Bucks">💰 <span id="bucksVal">0</span></div>
+  <div id="title">Kick The <b id="nameLabel">Arham</b></div>
+  <div class="btns">
+    <button id="btnVault" title="Vault">🔐</button>
+    <button id="btnName" title="Rename buddy">✏️</button>
+    <button id="btnFace" title="Use a photo as the face">📷</button>
+    <button id="btnNoFace" title="Remove photo face" hidden>🙂</button>
+    <button id="btnMute" title="Sound on/off">🔊</button>
+    <button id="btnClear" title="Clear props and marks">🧹</button>
+    <button id="btnReset" title="Reset buddy">🔄</button>
+  </div>
+  <input type="file" id="faceInput" accept="image/*" hidden>
+</div>
+
+<div id="meter" title="Pain meter: fill it to double your bucks">
+  <div class="lbl">PAIN</div>
+  <div class="bar"><div id="meterFill"></div></div>
+  <div id="meterTag">1X</div>
+</div>
+
+<div id="tools"></div>
+<div id="toast"></div>
+
+<form id="vaultBox" class="dialog" hidden>
+  <div class="vtitle">🔐 The Vault</div>
+  <div id="vaultLocked">
+    <label for="vaultField">Enter the developer password</label>
+    <input id="vaultField" type="password" autocomplete="off">
+    <div id="vaultMsg" class="vmsg"></div>
+    <div class="row"><button type="button" id="vaultCancel">Cancel</button><button type="submit">Unlock</button></div>
+  </div>
+  <div id="vaultOn" hidden>
+    <p>Infinite money is <b>on</b>. Buy whatever you like.</p>
+    <div class="row"><button type="button" id="vaultOff">Turn off</button><button type="button" id="vaultClose">Close</button></div>
+  </div>
+</form>
+
+<div id="nurseBox" hidden>
+  <div class="nhead">
+    <canvas id="nurseCv" width="240" height="240"></canvas>
+    <div class="kinfo"><div class="kname" id="nurseName"></div><div class="ksay" id="nurseSay"></div></div>
+    <button id="nurseClose" aria-label="Close nurse station">✕</button>
+  </div>
+  <button class="treat" id="nurseBandage"><span>🩹</span><b>Bandage up</b><small>Stops the bleeding and covers flesh wounds.</small></button>
+  <button class="treat" id="nurseSurgery"><span>🏥</span><b>Full surgery</b><small>Sets broken bones, puts ripped-off limbs back, fixes everything.</small></button>
+</div>
+
+<div id="shopScrim" hidden></div>
+<aside id="shop" class="ph1" aria-label="Shop">
+  <div class="shead">
+    <canvas id="keeperCv" width="280" height="280"></canvas>
+    <div class="kinfo"><div class="kname" id="keeperName"></div><div class="ksay" id="keeperSay"></div></div>
+    <button id="shopClose" aria-label="Close shop">✕</button>
+  </div>
+  <nav id="phaseTabs"></nav>
+  <div class="ptitle"><b id="phaseName"></b><span id="phaseDesc"></span></div>
+  <div id="shopGrid"></div>
+</aside>
+<form id="nameBox" hidden>
+  <label for="nameField">Name your buddy</label>
+  <input id="nameField" maxlength="16" autocomplete="off">
+  <div class="row"><button type="button" id="nameCancel">Cancel</button><button type="submit">Save</button></div>
+</form>
+
+<script>
 'use strict';
 /* Kick The Arham — a Kick the Buddy style stress-relief game.
    Verlet ragdoll physics, weapons, bucks, unlocks, and Boodie. No dependencies. */
@@ -2605,3 +2886,7 @@ requestAnimationFrame(loop);
 
 // debug/testing hook
 window.KTA = { get ents() { return ents; }, unlockAll() { phasesUnlocked = 5; TOOLS.forEach(t => unlocked.add(t.id)); buildTools(); }, set tool(t) { tool = t; }, openShop, get arham() { return arham; }, get boodie() { return boodie; }, get props() { return props; }, addBucks, explode, spawnBoodie };
+
+</script>
+</body>
+</html>

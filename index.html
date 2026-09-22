@@ -7,6 +7,16 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<div id="gate">
+  <form id="gateForm" autocomplete="off">
+    <div class="glock">🔒</div>
+    <label for="gateField">Enter password</label>
+    <input id="gateField" type="password" autocomplete="off">
+    <div id="gateMsg"></div>
+    <button type="submit">Enter</button>
+  </form>
+</div>
+
 <canvas id="c"></canvas>
 
 <div id="top">
@@ -46,6 +56,16 @@
     <div class="row"><button type="button" id="vaultOff">Turn off</button><button type="button" id="vaultClose">Close</button></div>
   </div>
 </form>
+
+<div id="nurseBox" hidden>
+  <div class="nhead">
+    <canvas id="nurseCv" width="240" height="240"></canvas>
+    <div class="kinfo"><div class="kname" id="nurseName"></div><div class="ksay" id="nurseSay"></div></div>
+    <button id="nurseClose" aria-label="Close nurse station">✕</button>
+  </div>
+  <button class="treat" id="nurseBandage"><span>🩹</span><b>Bandage up</b><small>Stops the bleeding and covers flesh wounds.</small></button>
+  <button class="treat" id="nurseSurgery"><span>🏥</span><b>Full surgery</b><small>Sets broken bones, puts ripped-off limbs back, fixes everything.</small></button>
+</div>
 
 <div id="shopScrim" hidden></div>
 <aside id="shop" class="ph1" aria-label="Shop">

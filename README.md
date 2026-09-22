@@ -3,8 +3,12 @@
 A browser remake of *Kick the Buddy*, built with plain HTML5 canvas and JavaScript. No libraries and no build step.
 
 ## Play
-Open `index.html` in any modern browser. It works on desktop (mouse) and mobile (touch).
-To host it, push to GitHub Pages or any static host.
+Open **`KickTheArham.html`** in any modern browser. It's a single self-contained file, works offline,
+and can be shared as-is (desktop mouse or mobile touch). The game starts with a password screen;
+the password is the same as the developer vault password.
+
+For development, edit `index.html`, `style.css` and `game.js`, then run `python3 build.py`
+to regenerate `KickTheArham.html`.
 
 ## Features
 - **Ragdoll physics** (Verlet). Arham stands, wobbles, gets knocked flat, and climbs back up.
@@ -18,6 +22,9 @@ To host it, push to GitHub Pages or any static host.
 - **Boodie** ($1500): a blonde brawler who spawns in and beats up Arham with jabs, kicks, slaps, headbutts and stomps. Any harm to her KOs her instantly, and a KO'd Boodie fades away after a few seconds (🧹 also removes her); her icon stays red until she is KO'd, and spawning a new one replaces the old one.
 - **Bucks 💰**: earn money (slowly!) by hurting the buddy and spend it to unlock weapons
 - **Pain meter**: fills slowly as Arham takes damage; when full, bucks are doubled for 30 seconds while it drains
+- **Gore**: every body part takes damage separately, going from exposed muscle to exposed bone to a broken bone. Ribs and guts show through the torso and the skull cracks. Flesh chunks, organs, intestines and bone shards fly, and blood pools, drips and splatters.
+- **Broken bones can be ripped out**: grab a broken limb with the Hand and yank hard. The bone drops as a prop you can throw, and the stump spurts blood.
+- **Nurse station 🏥**: Nurse Nancy walks in to bandage him (stops the bleeding) or do full surgery (sets bones and reattaches limbs)
 - Expressions, speech bubbles, bruises, cuts, bullet holes, scorch marks, screen shake
 - Synthesized sound effects (Web Audio API)
 - 🔐 **Vault**: enter the developer password for infinite money (can be turned off again)

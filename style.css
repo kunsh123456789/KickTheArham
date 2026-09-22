@@ -155,3 +155,38 @@ html, body {
 #vaultBox button[type=submit], #vaultClose { background: #ffd84d; }
 #vaultBox.shake { animation: vshake .35s; }
 @keyframes vshake { 0%,100% { transform: translateX(-50%); } 25% { transform: translateX(calc(-50% - 10px)); } 75% { transform: translateX(calc(-50% + 10px)); } }
+
+#nurseBox {
+  position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 24;
+  width: min(380px, calc(100vw - 32px)); background: linear-gradient(#ffe3ec, #ffc2d4); color: #222;
+  border: 3px solid #000; border-radius: 18px; box-shadow: 0 6px 0 #000; padding: 14px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+#nurseBox[hidden] { display: none; }
+.nhead { display: flex; gap: 10px; align-items: center; }
+#nurseCv { width: 96px; height: 96px; flex: none; background: #fff; border: 3px solid #000; border-radius: 14px; }
+#nurseBox .kname { color: #d6336c; text-shadow: none; font-size: 17px; }
+#nurseClose { align-self: flex-start; width: 34px; height: 34px; flex: none; border-radius: 10px; border: 3px solid #000; background: #fff; font-size: 16px; cursor: pointer; }
+.treat {
+  display: grid; grid-template-columns: 44px 1fr; grid-template-rows: auto auto; column-gap: 8px; text-align: left;
+  background: #fff; border: 3px solid #000; border-radius: 14px; box-shadow: 0 4px 0 #000; padding: 10px; cursor: pointer; font: inherit;
+}
+.treat:active { transform: translateY(2px); box-shadow: 0 2px 0 #000; }
+.treat span { grid-row: span 2; font-size: 32px; align-self: center; }
+.treat b { font-size: 16px; }
+.treat small { color: #555; font-size: 12px; }
+.tool.nursebtn { background: #ffc2d4; }
+
+#gate {
+  position: fixed; inset: 0; z-index: 100; background: #0b0a12; display: flex; align-items: center; justify-content: center;
+  padding: 16px; transition: opacity .45s;
+}
+#gate.open { opacity: 0; pointer-events: none; }
+#gateForm { display: flex; flex-direction: column; align-items: stretch; gap: 10px; width: min(300px, 100%); color: #cfcbe0; font-weight: 700; text-align: center; }
+#gateForm .glock { font-size: 44px; }
+#gateForm input { font: inherit; font-size: 18px; padding: 10px 12px; border-radius: 10px; border: 2px solid #3a3550; background: #16141f; color: #fff; text-align: center; letter-spacing: 3px; outline: none; }
+#gateForm input:focus { border-color: #ffd84d; }
+#gateForm button { font: inherit; font-size: 16px; padding: 10px; border-radius: 10px; border: 0; background: #ffd84d; color: #3b2a00; font-weight: 900; cursor: pointer; }
+#gateMsg { color: #ff6b7a; min-height: 1.2em; font-size: 13px; }
+#gateForm.shake { animation: gshake .35s; }
+@keyframes gshake { 0%,100% { transform: none; } 25% { transform: translateX(-10px); } 75% { transform: translateX(10px); } }
