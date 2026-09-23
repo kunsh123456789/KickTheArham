@@ -211,6 +211,8 @@ html, body {
 .shard { position: fixed; width: 8px; height: 5px; z-index: 40; pointer-events: none; border: 1px solid #000; animation: shardFly .8s ease-out forwards; }
 @keyframes shardFly { to { transform: translate(var(--dx), var(--dy)) rotate(var(--r)); opacity: 0; } }
 
+#shop.ph6 { --sb: linear-gradient(#3a3a3a 0 45%, #2a2a2a 45% 55%, #3a3a3a 55%); --acc: #ffd60a; }
+
 </style>
 </head>
 <body>
@@ -333,6 +335,7 @@ let earnFrac = 0, idleTimer = 0;
 // Pain meter: fills with damage. Each time it fills it LIMIT BREAKS to the next multiplier.
 // It drains if you stop hurting him, and dropping below empty loses a tier.
 const EARN_RATE = .3, METER_RATE = .35;
+const MAX_PHASE = 5; // meter-unlocked shop phases (Vehicles is always open)
 const TIERS = [1, 2, 3, 4, 5, 10, 15, 20, 30, 50, 75, 100];
 let painMeter = store.get('meter', 0), tier = clamp(store.get('tier', 0), 0, TIERS.length - 1), meterIdle = 0, meterSaveT = 0;
 const meterMult = () => TIERS[tier];
@@ -391,6 +394,16 @@ const TOOLS = [
   { id: 'bees', phase: 5, name: 'Bees', icon: '🐝', price: 700, desc: 'A swarm of very angry bees.' },
   { id: 'piano', phase: 5, name: 'Piano', icon: '🎹', price: 900, desc: 'Drops from the sky with a CLANG.' },
   { id: 'nuke', phase: 5, name: 'Nuke', icon: '☢️', price: 2500, desc: 'The end of everything. For him.' },
+  // Vehicles (always open) — tap anywhere to send one across the room
+  { id: 'bike', phase: 6, name: 'Dirt Bike', icon: '🏍️', price: 250, desc: 'Wheelies straight into him.' },
+  { id: 'car', phase: 6, name: 'Car', icon: '🚗', price: 450, desc: 'A classic hit and run.' },
+  { id: 'icecream', phase: 6, name: 'Ice Cream Truck', icon: '🍦', price: 600, desc: 'Plays a jingle. Shows no mercy.' },
+  { id: 'truck', phase: 6, name: 'Truck', icon: '🚚', price: 750, desc: 'Eighteen wheels of regret.' },
+  { id: 'monster', phase: 6, name: 'Monster Truck', icon: '🛻', price: 1000, desc: 'Giant wheels. Giant crunch.' },
+  { id: 'roller', phase: 6, name: 'Steamroller', icon: '🚜', price: 1200, desc: 'Slowly flattens him into a pancake.' },
+  { id: 'rocket', phase: 6, name: 'Rocket Car', icon: '🏎️', price: 1500, desc: 'Mach 5. Launches him to the ceiling.' },
+  { id: 'train', phase: 6, name: 'Freight Train', icon: '🚂', price: 2500, desc: 'Choo choo! Very long, very fast.' },
+  { id: 'orbital', phase: 6, name: 'Orbital Cannon', icon: '🛰️', price: 6000, desc: 'Locks on from space. Vaporizes.' },
 ];
 
 // ---------- ragdoll definition (units of u, relative to feet on floor) ----------
@@ -543,6 +556,14 @@ function sfx(kind, strength = 1) {
     case 'rank': [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, f, .16, 'sawtooth', .07, i * .05)); break;
     case 'cash': [1319, 1568, 2093].forEach((f, i) => tone(f, f, .12, 'triangle', .12, i * .07)); noise(.2, .2, 6000, 'highpass'); break;
     case 'limit': tone(110, 880, .6, 'sawtooth', .18); [262, 330, 392, 523].forEach((f, i) => tone(f, f, .5, 'square', .06, .35 + i * .02)); noise(.9, .8, 700); noise(.3, .7, 5000, 'highpass'); break;
+    case 'engine': tone(90, 160, .8, 'sawtooth', .12); tone(45, 80, .8, 'square', .06); break;
+    case 'engineHi': for (let i = 0; i < 3; i++) tone(180 + i * 60, 420 + i * 80, .25, 'sawtooth', .08, i * .18); break;
+    case 'engineLo': tone(45, 70, 1.4, 'sawtooth', .16); noise(1.2, .3, 250); break;
+    case 'horn': tone(311, 311, .6, 'sawtooth', .12); tone(392, 392, .6, 'sawtooth', .1); break;
+    case 'jingle': [784, 659, 784, 880, 784, 659, 523].forEach((f, i) => tone(f, f, .14, 'triangle', .1, i * .15)); break;
+    case 'crash': noise(.35, 1, 1400); tone(120, 40, .3, 'sine', .8); tone(700, 500, .2, 'triangle', .15); sweep(.3, .7, 300, 1200, 150, 5); break;
+    case 'charge': tone(100, 1600, 2, 'sawtooth', .1); tone(200, 3200, 2, 'sine', .06); break;
+    case 'beam': noise(1.8, .8, 900); tone(60, 50, 1.8, 'sawtooth', .25); tone(1200, 900, 1.8, 'sine', .08); break;
     case 'heal': [660, 880, 1320].forEach((f, i) => tone(f, f, .18, 'sine', .1, i * .07)); break;
     case 'glass': noise(.3, .6, 6000, 'highpass'); for (let i = 0; i < 4; i++) tone(rand(2000, 4000), rand(1500, 3000), .1, 'triangle', .05, i * .03); break;
     case 'fwoosh': noise(.5, .5, 1200, 'bandpass', .7); break;
@@ -668,7 +689,7 @@ function limitBreak() {
   const bar = $('meter'); bar.classList.remove('break'); void bar.offsetWidth; bar.classList.add('break');
   meterShards();
   toast(`💥 Pain meter LIMIT BREAK! Bucks now ${m}X`, 2200);
-  if (phasesUnlocked < PHASES.length) {
+  if (phasesUnlocked < MAX_PHASE) {
     phasesUnlocked++; store.set('phases', phasesUnlocked); shopHasNew = true;
     const n = phasesUnlocked;
     setTimeout(() => toast(`🏪 Shop Phase ${n}: ${PHASES[n - 1].name} unlocked!`, 3000), 2400);
@@ -1556,6 +1577,9 @@ const ACTIONS = {
   gravflip: () => flipGravity(), blackhole: spawnBlackHole, meteor: dropMeteor, ufo: () => summonUFO(),
   chicken: (x, y) => doPunch(x, y, { e: '🐔', mult: 1.7, dmg: 8, snd: 'squeak', words: ['BONK!', 'SQUAWK!', 'BAWK!'] }),
   pie: throwPie, bees: releaseBees, nuke: x => launchNuke(x),
+  bike: () => driveVehicle('bike'), car: () => driveVehicle('car'), icecream: () => driveVehicle('icecream'), truck: () => driveVehicle('truck'),
+  monster: () => driveVehicle('monster'), roller: () => driveVehicle('roller'), rocket: () => driveVehicle('rocket'), train: () => driveVehicle('train'),
+  orbital: x => orbitalStrike(x),
   piano: x => { const a = addProp('piano', x, -U * 1.5); addVel(a, 0, -U * .1); sfx('whoosh'); },
 };
 // hold-to-use tools, run every step while the pointer is down
@@ -1948,6 +1972,201 @@ function drawNurse(c, x, y, u, phase, dir, working) {
   c.lineWidth = 3; c.beginPath(); c.arc(hx + dir * R * .1, hy + R * .2, R * .28, .2 * Math.PI, .8 * Math.PI); c.stroke();
   c.fillStyle = 'rgba(255,90,110,.35)'; for (const s of [-1, 1]) { c.beginPath(); c.arc(hx + s * R * .55, hy + R * .25, R * .12, 0, 7); c.fill(); }
   c.restore();
+}
+
+// ---------- vehicles: drive across the room and run him over ----------
+// len/h in body units, speed in units per step, launch = how high he flies, crush = presses him flat instead
+const VEHICLES = {
+  bike: { len: 1.7, h: 1.2, speed: .22, dmg: 12, launch: .45, snd: 'engineHi', words: ['VROOM!', 'WHEELIE!'] },
+  car: { len: 2.8, h: 1.25, speed: .26, dmg: 18, launch: .5, snd: 'engine', words: ['SPLAT!', 'HIT & RUN!'] },
+  icecream: { len: 3.2, h: 1.9, speed: .2, dmg: 18, launch: .45, snd: 'jingle', words: ['ICE SCREAM!', 'BRAIN FREEZE!'] },
+  truck: { len: 4, h: 2.1, speed: .22, dmg: 26, launch: .55, snd: 'horn', words: ['HONK!', 'ROADKILL!'] },
+  monster: { len: 3.4, h: 2.7, speed: .22, dmg: 30, launch: .7, snd: 'engineLo', words: ['CRUSH!', 'MONSTER JAM!'] },
+  roller: { len: 3.2, h: 1.9, speed: .07, dmg: 6, crush: true, snd: 'engineLo', words: ['FLATTENED!', 'PANCAKE!'] },
+  rocket: { len: 2.6, h: .95, speed: .6, dmg: 32, launch: 1.1, snd: 'rocket', words: ['LAUNCHED!', 'MACH 5!'] },
+  train: { len: 13, h: 2.5, speed: .45, dmg: 45, launch: .8, snd: 'horn', words: ['CHOO CHOO!', 'TRAIN\'D!'] },
+};
+function driveVehicle(type) {
+  const V = VEHICLES[type], [ax] = bodyCenter(arham), dir = ax > W / 2 ? 1 : -1;
+  const L = V.len * U;
+  const e = { type, V, dir, x: dir > 0 ? -U * .2 : W + U * .2, hit: new Map(), t: 0, wheel: 0 };
+  sfx(V.snd); if (type === 'train') setTimeout(() => sfx('horn'), 350);
+  e.u = dt => {
+    e.t += dt;
+    const sp = V.speed * U;
+    e.x += dir * sp; e.wheel += sp / (U * .3);
+    const back = e.x - dir * L, top = FLOOR - V.h * U;
+    if (Math.random() < .5) spawn('smoke', back - dir * 6, FLOOR - U * .3, -dir * rand(.5, 2), rand(-1.2, -.2), rand(.4, .8), rand(6, 12), type === 'rocket' ? '#ffb703' : '#999');
+    if (type === 'train' && Math.random() < .6) spawn('smoke', e.x - dir * U * .5, FLOOR - V.h * U * 1.1, -dir * rand(1, 3), rand(-3, -1), rand(.8, 1.4), rand(12, 22), '#555');
+    if (type === 'rocket') for (let i = 0; i < 3; i++) spawn('flame', back - dir * rand(4, 20), FLOOR - U * .45 + rand(-8, 8), -dir * rand(4, 9), rand(-1, 1), rand(.15, .3), rand(8, 14), '#ff9f1c');
+    for (const B of bodies()) {
+      let hitAny = false;
+      B.P.forEach((p, i) => {
+        const rel = (p.x - e.x) * dir; // 0 at the front bumper, -L at the back
+        if (rel > p.r || rel < -L - p.r || p.y < top - p.r) return;
+        const key = B.kind + i, last = e.hit.get(key) || -9;
+        if (V.crush) { // steamroller: pressed flat and dragged along
+          p.y = Math.max(p.y, FLOOR - p.r * .6); p.py = p.y;
+          p.x += dir * sp * .9;
+          if (e.t - last > .25) { e.hit.set(key, e.t); hurt(B, V.dmg); woundPoint(B, i, V.dmg * 2.2); blood(p.x, p.y, 6, .8); if (Math.random() < .3) gibs(p.x, p.y, 1, .6); hitAny = true; }
+          return;
+        }
+        if (rel > -U * .5) { p.x = e.x + dir * p.r; p.px = p.x - dir * sp * 1.4; } // shoved by the bumper
+        else { p.y = Math.min(p.y, top - p.r); } // rolled up over the bonnet
+        if (e.t - last > .5) {
+          e.hit.set(key, e.t);
+          addVel(p, dir * sp * rand(.6, 1.2), -V.launch * U * rand(.6, 1.1));
+          hurt(B, V.dmg * rand(.5, 1)); woundPoint(B, i, V.dmg * 1.4);
+          hitAny = true;
+        }
+      });
+      if (hitAny) {
+        knock(B, 0);
+        const [cx, cy] = bodyCenter(B);
+        if (!e.announced) { e.announced = true; sfx('crash'); popText(cx, cy - U, pick(V.words), '#ffd84d', 44); shake = Math.max(shake, 22); hitStop = Math.max(hitStop, .09); gibs(cx, cy, 6, 1.4); blood(cx, cy, 24, 1.8); wallSplat(cx, cy - U, 2); }
+        else if (Math.random() < .4) sfx('crash');
+      }
+    }
+    return dir > 0 ? back < W + U : back > -U;
+  };
+  e.d = () => { ctx.save(); ctx.translate(e.x, FLOOR); ctx.scale(dir, 1); drawVehicle(type, V.len * U, V.h * U, e.wheel, e.t); ctx.restore(); };
+  ents.push(e);
+}
+function wheel(x, r, spin, rim = '#bbb') {
+  ctx.fillStyle = '#1b1b1b'; ctx.beginPath(); ctx.arc(x, -r, r, 0, 7); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = rim; ctx.beginPath(); ctx.arc(x, -r, r * .5, 0, 7); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = '#444'; ctx.lineWidth = 2;
+  for (let k = 0; k < 3; k++) { const a = spin + k * 2.09; ctx.beginPath(); ctx.moveTo(x, -r); ctx.lineTo(x + Math.cos(a) * r * .5, -r + Math.sin(a) * r * .5); ctx.stroke(); }
+  ctx.strokeStyle = '#111'; ctx.lineWidth = 3;
+}
+function vbody(x, y, w, h, c, rad = 8) { ctx.fillStyle = c; ctx.beginPath(); ctx.roundRect(x, y, w, h, rad); ctx.fill(); ctx.stroke(); }
+function windowPane(x, y, w, h) { ctx.fillStyle = '#9ad1ff'; ctx.beginPath(); ctx.roundRect(x, y, w, h, 4); ctx.fill(); ctx.stroke(); ctx.fillStyle = 'rgba(255,255,255,.5)'; ctx.fillRect(x + w * .15, y + 3, w * .15, h - 6); }
+// drawn facing +x with the front bumper at x = 0 and the ground at y = 0
+function drawVehicle(type, L, H, spin, t) {
+  const u = U;
+  ctx.lineWidth = 3; ctx.strokeStyle = '#111'; ctx.lineJoin = 'round';
+  if (type === 'bike') {
+    wheel(-L * .15, u * .3, spin); wheel(-L * .85, u * .3, spin);
+    ctx.strokeStyle = '#ff7b00'; ctx.lineWidth = 6;
+    ctx.beginPath(); ctx.moveTo(-L * .85, -u * .3); ctx.lineTo(-L * .5, -u * .6); ctx.lineTo(-L * .15, -u * .3); ctx.moveTo(-L * .5, -u * .6); ctx.lineTo(-L * .25, -u * .85); ctx.stroke();
+    ctx.lineWidth = 3; ctx.strokeStyle = '#111';
+    vbody(-L * .7, -u * .8, L * .4, u * .22, '#ff7b00', 6);
+    // rider
+    ctx.strokeStyle = '#223'; ctx.lineWidth = u * .16; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(-L * .5, -u * .8); ctx.lineTo(-L * .45, -u * 1.25); ctx.lineTo(-L * .25, -u * .9); ctx.stroke();
+    ctx.lineWidth = 3; ctx.strokeStyle = '#111';
+    ctx.fillStyle = '#e63946'; ctx.beginPath(); ctx.arc(-L * .42, -u * 1.4, u * .2, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#111'; ctx.fillRect(-L * .38, -u * 1.45, u * .15, u * .08);
+  } else if (type === 'car' || type === 'rocket') {
+    const c = type === 'car' ? '#e63946' : '#c0c7d1';
+    vbody(-L, -H * .75, L, H * .45, c, 12);
+    ctx.fillStyle = c; ctx.beginPath(); ctx.moveTo(-L * .75, -H * .74); ctx.lineTo(-L * .62, -H); ctx.lineTo(-L * .3, -H); ctx.lineTo(-L * .2, -H * .74); ctx.closePath(); ctx.fill(); ctx.stroke();
+    windowPane(-L * .6, -H * .96, L * .14, H * .2); windowPane(-L * .44, -H * .96, L * .14, H * .2);
+    ctx.fillStyle = '#ffe066'; ctx.beginPath(); ctx.arc(-6, -H * .55, 5, 0, 7); ctx.fill(); ctx.stroke();
+    if (type === 'rocket') {
+      ctx.fillStyle = '#e63946'; ctx.beginPath(); ctx.moveTo(-L, -H * .75); ctx.lineTo(-L * 1.12, -H * 1.15); ctx.lineTo(-L * .85, -H * .75); ctx.fill(); ctx.stroke();
+      vbody(-L * 1.08, -H * .65, L * .12, H * .3, '#555', 4);
+    }
+    wheel(-L * .2, u * .3, spin); wheel(-L * .8, u * .3, spin);
+  } else if (type === 'truck' || type === 'icecream') {
+    const box = type === 'truck' ? '#f1f1f1' : '#ffc8dd', cab = type === 'truck' ? '#1d4ed8' : '#ffafcc';
+    vbody(-L, -H, L * .7, H * .85, box, 6);
+    vbody(-L * .3, -H * .75, L * .3, H * .6, cab, 10);
+    windowPane(-L * .22, -H * .7, L * .16, H * .22);
+    const txt = type === 'truck' ? 'PAIN CO.' : 'ICE SCREAM';
+    ctx.save(); ctx.translate(-L * .65, -H * .6); if (ctx.getTransform().a < 0) ctx.scale(-1, 1);
+    ctx.fillStyle = type === 'truck' ? '#e63946' : '#7b2cbf'; ctx.font = `900 ${u * .38}px "Trebuchet MS", sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(txt, 0, 0);
+    ctx.restore();
+    if (type === 'icecream') { // cone on the roof
+      ctx.fillStyle = '#d4a373'; ctx.beginPath(); ctx.moveTo(-L * .7, -H); ctx.lineTo(-L * .62, -H - u * .7); ctx.lineTo(-L * .54, -H); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#ff85a1'; ctx.beginPath(); ctx.arc(-L * .62, -H - u * .75, u * .25, 0, 7); ctx.fill(); ctx.stroke();
+    }
+    for (const x of [-.12, -.55, -.85]) wheel(L * x, u * .35, spin);
+  } else if (type === 'monster') {
+    vbody(-L * .9, -H * .78, L * .85, H * .3, '#38b000', 10);
+    ctx.fillStyle = '#38b000'; ctx.beginPath(); ctx.moveTo(-L * .7, -H * .77); ctx.lineTo(-L * .6, -H); ctx.lineTo(-L * .3, -H); ctx.lineTo(-L * .22, -H * .77); ctx.closePath(); ctx.fill(); ctx.stroke();
+    windowPane(-L * .56, -H * .96, L * .24, H * .14);
+    ctx.fillStyle = '#ff7b00'; for (let k = 0; k < 4; k++) { ctx.beginPath(); ctx.moveTo(-L * (.85 - k * .12), -H * .5); ctx.quadraticCurveTo(-L * (.8 - k * .12), -H * .66, -L * (.75 - k * .12), -H * .5); ctx.fill(); }
+    ctx.strokeStyle = '#555'; ctx.lineWidth = 6; for (const x of [-.25, -.75]) { ctx.beginPath(); ctx.moveTo(L * x, -u * .8); ctx.lineTo(L * x, -H * .5); ctx.stroke(); }
+    ctx.lineWidth = 3; ctx.strokeStyle = '#111';
+    wheel(-L * .25, u * .8, spin, '#ffd60a'); wheel(-L * .75, u * .8, spin, '#ffd60a');
+  } else if (type === 'roller') {
+    vbody(-L, -H * .75, L * .6, H * .45, '#ffd60a', 8);
+    vbody(-L * .85, -H, L * .35, H * .3, '#ffd60a', 6); windowPane(-L * .78, -H * .95, L * .2, H * .18);
+    ctx.fillStyle = '#555'; ctx.fillRect(-L * .42, -H * .55, L * .18, H * .1); ctx.strokeRect(-L * .42, -H * .55, L * .18, H * .1);
+    ctx.fillStyle = '#7a7a7a'; ctx.beginPath(); ctx.arc(-L * .2, -u * .65, u * .65, 0, 7); ctx.fill(); ctx.stroke(); // drum
+    ctx.strokeStyle = '#555'; ctx.lineWidth = 2; for (let k = 0; k < 6; k++) { const a = spin * .4 + k; ctx.beginPath(); ctx.moveTo(-L * .2 + Math.cos(a) * u * .2, -u * .65 + Math.sin(a) * u * .2); ctx.lineTo(-L * .2 + Math.cos(a) * u * .6, -u * .65 + Math.sin(a) * u * .6); ctx.stroke(); }
+    ctx.strokeStyle = '#111'; ctx.lineWidth = 3;
+    wheel(-L * .85, u * .45, spin);
+  } else if (type === 'train') {
+    // locomotive at the front, one boxcar behind
+    vbody(-L * .42, -H * .8, L * .42, H * .55, '#222', 10);
+    ctx.fillStyle = '#e63946'; ctx.fillRect(-L * .42, -H * .38, L * .42, H * .08);
+    vbody(-L * .42, -H, L * .12, H * .45, '#333', 6); windowPane(-L * .4, -H * .95, L * .08, H * .18);
+    vbody(-L * .14, -H * 1.1, u * .35, H * .35, '#111', 4); // chimney
+    ctx.fillStyle = '#888'; ctx.beginPath(); ctx.moveTo(0, -H * .3); ctx.lineTo(u * .5, 0); ctx.lineTo(0, 0); ctx.closePath(); ctx.fill(); ctx.stroke(); // cow catcher
+    ctx.fillStyle = '#ffe066'; ctx.beginPath(); ctx.arc(-u * .1, -H * .65, u * .15, 0, 7); ctx.fill(); ctx.stroke();
+    vbody(-L, -H * .95, L * .55, H * .75, '#8d5524', 6);
+    ctx.strokeStyle = '#5a3a1a'; for (let k = 1; k < 8; k++) { ctx.beginPath(); ctx.moveTo(-L + k * L * .55 / 8, -H * .92); ctx.lineTo(-L + k * L * .55 / 8, -H * .25); ctx.stroke(); }
+    ctx.strokeStyle = '#111';
+    for (const x of [-.06, -.16, -.28, -.38, -.52, -.62, -.85, -.95]) wheel(L * x, u * .32, spin, '#e63946');
+  }
+}
+
+// ---------- orbital strike cannon ----------
+function orbitalStrike(tx) {
+  const e = { x: tx, t: 0, state: 'aim' };
+  sfx('charge');
+  e.u = dt => {
+    e.t += dt;
+    if (e.state === 'aim') {
+      if (e.t > 2) { e.state = 'fire'; e.t = 0; sfx('beam'); flash = 1; flashColor = '#c8f7ff'; }
+    } else if (e.state === 'fire') {
+      shake = Math.max(shake, 22); hurtFx = Math.max(hurtFx, .2);
+      const w = U * .9;
+      for (const B of bodies()) {
+        let inBeam = false;
+        B.P.forEach((p, i) => {
+          if (Math.abs(p.x - e.x) > w + p.r) return;
+          inBeam = true;
+          addVel(p, (p.x - e.x) * .02 + rand(-1, 1), rand(-2, 1.5));
+          if (Math.random() < .2) woundPoint(B, i, 14);
+        });
+        if (inBeam) {
+          hurt(B, dt * 90, 'zap'); knock(B, 0); B.char = Math.min(1, B.char + dt * .5);
+          if (Math.random() < .35) { const [cx, cy] = bodyCenter(B); gibs(cx, cy, 1, 1.3); blood(cx, cy, 4, 1.4); }
+        }
+      }
+      for (let k = 0; k < 4; k++) spawn('spark', e.x + rand(-w, w), FLOOR - rand(0, 10), rand(-9, 9), rand(-12, -2), rand(.2, .5), rand(2, 4), pick(['#fff', '#72efdd', '#c8f7ff']));
+      if (Math.random() < .5) spawn('smoke', e.x + rand(-w, w) * 1.5, FLOOR - rand(0, U), rand(-3, 3), rand(-3, -1), rand(.6, 1.2), rand(15, 30), '#444');
+      if (e.t > 1.8) {
+        explode(e.x, FLOOR - 10, U * 5, U * 1.4, { fire: true, text: 'ORBITAL STRIKE!' });
+        whiteT = Math.max(whiteT, 1.2); shake = 45;
+        wallMarks.push({ x: e.x, y: FLOOR - 5, r: U * 1.6, life: 40 });
+        return false;
+      }
+    }
+    return true;
+  };
+  e.d = () => {
+    if (e.state === 'aim') {
+      const blink = (e.t * 8 | 0) % 2, r = U * (1.6 - e.t * .5);
+      ctx.strokeStyle = blink ? '#ff2b2b' : '#fff'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(e.x, FLOOR - U * .4, Math.max(8, r), 0, 7); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(e.x - U * 2, FLOOR - U * .4); ctx.lineTo(e.x + U * 2, FLOOR - U * .4); ctx.moveTo(e.x, FLOOR - U * 2.2); ctx.lineTo(e.x, FLOOR + 10); ctx.stroke();
+      ctx.strokeStyle = `rgba(255,40,40,${.3 + .4 * Math.random()})`; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(e.x, 0); ctx.lineTo(e.x, FLOOR); ctx.stroke();
+      ctx.font = '900 20px "Trebuchet MS", sans-serif'; ctx.textAlign = 'center'; ctx.lineWidth = 5; ctx.strokeStyle = '#000'; ctx.fillStyle = '#ff2b2b';
+      const t = `ORBITAL LOCK ${Math.max(0, 2 - e.t).toFixed(1)}s`; ctx.strokeText(t, e.x, FLOOR - U * 2.5); ctx.fillText(t, e.x, FLOOR - U * 2.5);
+    } else {
+      const w = U * .9 * (1 + Math.sin(e.t * 40) * .08);
+      const g = ctx.createLinearGradient(e.x - w * 2, 0, e.x + w * 2, 0);
+      g.addColorStop(0, 'rgba(114,239,221,0)'); g.addColorStop(.3, 'rgba(114,239,221,.6)'); g.addColorStop(.45, '#fff'); g.addColorStop(.55, '#fff'); g.addColorStop(.7, 'rgba(114,239,221,.6)'); g.addColorStop(1, 'rgba(114,239,221,0)');
+      ctx.fillStyle = g; ctx.fillRect(e.x - w * 2, -60, w * 4, FLOOR + 60);
+      ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.beginPath(); ctx.ellipse(e.x, FLOOR, w * 2.2, U * .35, 0, 0, 7); ctx.fill();
+    }
+  };
+  ents.push(e);
 }
 
 // ---------- input ----------
@@ -2692,6 +2911,7 @@ const PHASES = [
   { name: 'Warzone', desc: 'Army surplus. No questions asked.' },
   { name: 'Cosmic', desc: 'Imported from outer space. Warranty void on Earth.' },
   { name: 'Cartoon Chaos', desc: 'Physics has left the building.' },
+  { name: 'Vehicles', desc: 'Park directly on him. Always open.', always: true, tab: '🚗' },
 ];
 // The shopkeeper. Change anything here to restyle or rename him.
 const SHOPKEEPER = {
@@ -2699,7 +2919,7 @@ const SHOPKEEPER = {
   title: 'Proprietor of Pain',
   skin: '#c98b5b', hair: '#2d1b10', shirt: '#f4a261', apron: '#264653',
   mustache: true, glasses: true, beard: false,
-  hats: ['cap', 'fire', 'army', 'space', 'clown'], // one per shop phase: cap | fire | army | space | clown | none
+  hats: ['cap', 'fire', 'army', 'space', 'clown', 'cap'], // one per shop phase: cap | fire | army | space | clown | none
   lines: {
     hello: ["Welcome, welcome! Everything's for sale.", 'Back again? {n} still standing?', 'Hurt him a little, earn a little.', 'Browse all you like. Touching costs extra.'],
     buy: ['Pleasure doing business!', 'No refunds!', 'Ooh, {n} is gonna feel that.', 'Excellent choice.', 'Enjoy responsibly. Or not.'],
@@ -2726,9 +2946,9 @@ function openShop(on) {
 function renderShop() {
   const tabs = $('phaseTabs'); tabs.innerHTML = '';
   PHASES.forEach((ph, i) => {
-    const n = i + 1, locked = n > phasesUnlocked, b = document.createElement('button');
+    const n = i + 1, locked = n > phasesUnlocked && !ph.always, b = document.createElement('button');
     b.className = 'ptab' + (n === shopPhase ? ' on' : '') + (locked ? ' locked' : '');
-    b.textContent = locked ? `🔒${n}` : n; b.title = locked ? 'Fill the pain meter to unlock' : ph.name;
+    b.textContent = locked ? `🔒${n}` : ph.tab || n; b.title = locked ? 'Fill the pain meter to unlock' : ph.name;
     b.onclick = () => { if (locked) { sfx('deny'); keeperSay('locked'); return; } shopPhase = n; renderShop(); };
     tabs.appendChild(b);
   });
@@ -2801,7 +3021,7 @@ function refreshTools() {
   refreshAffordable();
 }
 function refreshAffordable() {
-  const any = TOOLS.some(t => t.phase <= phasesUnlocked && !unlocked.has(t.id) && canAfford(t.price));
+  const any = TOOLS.some(t => (t.phase <= phasesUnlocked || PHASES[t.phase - 1].always) && !unlocked.has(t.id) && canAfford(t.price));
   const s = document.querySelector('.tool.shopbtn'); if (s) s.classList.toggle('affordable', any);
   for (const c of document.querySelectorAll('#shopGrid .item:not(.owned)')) c.classList.toggle('can', canAfford(+c.dataset.price));
 }
