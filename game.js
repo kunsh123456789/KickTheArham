@@ -36,8 +36,20 @@ let faceImg = null;
 let tool = 'hand';
 let earnFrac = 0, idleTimer = 0;
 // Pain meter: fills slowly with damage to Arham; when full, bucks are doubled while it drains.
-const EARN_RATE = .06, METER_RATE = .1, BONUS_TIME = 30;
-let painMeter = store.get('meter', 0), bonusT = store.get('bonusT', 0), meterSaveT = 0;
+// Pain meter: fills with damage. Each time it fills it LIMIT BREAKS to the next multiplier.
+// It drains if you stop hurting him, and dropping below empty loses a tier.
+const EARN_RATE = .3, METER_RATE = .35;
+const TIERS = [1, 2, 3, 4, 5, 10, 15, 20, 30, 50, 75, 100];
+let painMeter = store.get('meter', 0), tier = clamp(store.get('tier', 0), 0, TIERS.length - 1), meterIdle = 0, meterSaveT = 0;
+const meterMult = () => TIERS[tier];
+// Combos: every hit within COMBO_WINDOW seconds of the last one adds to the combo.
+const COMBO_WINDOW = 1.6;
+const RANKS = [[5, 'NICE', '#9be564'], [10, 'GREAT', '#4cc9f0'], [20, 'BRUTAL', '#ffb703'], [35, 'SAVAGE', '#fb5607'], [50, 'INSANE', '#ff006e'], [75, 'MASSACRE', '#c77dff'], [100, 'GODLIKE', '#ffd84d'], [150, 'UNSTOPPABLE', '#ffffff']];
+let combo = 0, comboT = 0, comboBank = 0, comboSmall = 0, comboPop = 0, comboBest = store.get('comboBest', 0);
+const comboMult = () => 1 + Math.min(combo, 200) * .04;
+const comboRank = () => { let r = null; for (const x of RANKS) if (combo >= x[0]) r = x; return r; };
+// hit feel
+let hitStop = 0, camKick = 0, camFX = 0, camFY = 0, dmgAcc = 0, dmgCrit = false, dmgX = 0, dmgY = 0, dmgT = 0;
 let shake = 0, flash = 0, flashColor = '#fff', time = 0, hurtFx = 0, whiteT = 0;
 let props = [], parts = [], floorStains = [], wallMarks = [], bolts = [], fists = [];
 let arham = null, boodie = null;
@@ -200,7 +212,7 @@ function sweep(dur, vol, f0, f1, f2, q) {
 }
 function sfx(kind, strength = 1) {
   if (!AC || muted) return;
-  const now = performance.now(), gap = { thud: 60, slash: 50, crackle: 90, voice: 0, laser: 50, buzz: 150, sizzle: 80, smg: 40, squelch: 70, splat: 90, drip: 120, crack: 60 }[kind] || 20;
+  const now = performance.now(), gap = { thud: 60, slash: 50, crackle: 90, voice: 0, laser: 50, buzz: 150, sizzle: 80, smg: 40, squelch: 70, splat: 90, drip: 120, crack: 60, combo: 45, crit: 80 }[kind] || 20;
   if (sndLast[kind] && now - sndLast[kind] < gap) return;
   sndLast[kind] = now;
   const s = clamp(strength, .2, 1.8);
@@ -232,6 +244,11 @@ function sfx(kind, strength = 1) {
     case 'crack': noise(.05, 1, 5000, 'highpass'); noise(.14, .8, 1800, 'bandpass', 2); tone(900, 200, .05, 'square', .2); tone(700, 150, .04, 'square', .15, .035); break;
     case 'rip': sweep(.5, .9, 400, 3200, 900, 2); sweep(.4, .6, 200, 600, 100, 5); break;
     case 'drip': tone(rand(700, 1000), rand(280, 380), .08, 'sine', .07); break;
+    case 'combo': { const f = 300 * Math.pow(2, Math.min(combo, 48) / 16); tone(f, f * 1.5, .07, 'square', .06); break; }
+    case 'crit': tone(1600, 400, .12, 'square', .18); noise(.12, .9, 2500); sweep(.25, .8, 400, 1600, 150, 5); tone(90, 40, .3, 'sine', .8); break;
+    case 'rank': [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, f, .16, 'sawtooth', .07, i * .05)); break;
+    case 'cash': [1319, 1568, 2093].forEach((f, i) => tone(f, f, .12, 'triangle', .12, i * .07)); noise(.2, .2, 6000, 'highpass'); break;
+    case 'limit': tone(110, 880, .6, 'sawtooth', .18); [262, 330, 392, 523].forEach((f, i) => tone(f, f, .5, 'square', .06, .35 + i * .02)); noise(.9, .8, 700); noise(.3, .7, 5000, 'highpass'); break;
     case 'heal': [660, 880, 1320].forEach((f, i) => tone(f, f, .18, 'sine', .1, i * .07)); break;
     case 'glass': noise(.3, .6, 6000, 'highpass'); for (let i = 0; i < 4; i++) tone(rand(2000, 4000), rand(1500, 3000), .1, 'triangle', .05, i * .03); break;
     case 'fwoosh': noise(.5, .5, 1200, 'bandpass', .7); break;
@@ -299,34 +316,101 @@ function hurt(B, amount, kind = 'hurt') {
   }
   if (B.kind === 'boodie') { koBoodie(B); return; }
   idleTimer = 0;
-  earnFrac += amount * EARN_RATE * (bonusT > 0 ? 2 : 1);
-  if (bonusT <= 0) {
-    painMeter = Math.min(100, painMeter + amount * METER_RATE);
-    if (painMeter >= 100) startBonus();
+  // critical hits
+  let crit = false;
+  if (amount >= 3 && kind !== 'fire' && Math.random() < .14) {
+    crit = true; amount *= 2; B.pain = Math.min(100, B.pain + amount / 2);
+    const [cx, cy] = bodyCenter(B);
+    setTimeout(() => popText(dmgX || cx, (dmgY || cy) - 40, 'CRITICAL!', '#ff3b3b', 40), 0);
+    sfx('crit'); hitStop = Math.max(hitStop, .11); shake = Math.max(shake, 14);
+    blood(dmgX || cx, dmgY || cy, 16, 1.6);
   }
+  // juice: freeze frame, camera punch, flash, damage numbers
+  if (amount >= 6) hitStop = Math.max(hitStop, Math.min(.1, amount * .004));
+  if (amount >= 3) { camKick = Math.max(camKick, Math.min(.07, amount * .003)); const [cx, cy] = bodyCenter(B); camFX = cx; camFY = cy; B.flash = .09; }
+  dmgAcc += amount; dmgCrit = dmgCrit || crit;
+  if (performance.now() - dmgT > 60) { const q = B.P[(Math.random() * 6) | 0]; dmgX = q.x; dmgY = q.y; }
+  // combo
+  comboT = COMBO_WINDOW;
+  comboSmall += amount;
+  if (amount >= 2 || comboSmall >= 4) { comboSmall = 0; comboHit(); }
+  const earned = amount * EARN_RATE * meterMult() * comboMult();
+  earnFrac += earned; comboBank += earned;
+  meterIdle = 0;
+  painMeter += amount * METER_RATE / (1 + tier * .35);
+  if (painMeter >= 100) limitBreak();
   if (earnFrac >= 1) { const n = Math.floor(earnFrac); earnFrac -= n; addBucks(n); }
   if (amount > 1.5) say(B, kind);
 }
-function startBonus() {
-  bonusT = BONUS_TIME; painMeter = 100;
-  sfx('buy'); toast(`Pain meter full! 2X bucks for ${BONUS_TIME} seconds! 💰💰`, 2500);
-  popText(W / 2, FLOOR * .35, '2X BUCKS!', '#ffd84d', 56);
+function comboHit() {
+  combo++; comboPop = 1;
+  const before = RANKS.filter(r => combo - 1 >= r[0]).length, now = RANKS.filter(r => combo >= r[0]).length;
+  sfx('combo', combo);
+  if (now > before) {
+    const r = RANKS[now - 1];
+    sfx('rank'); shake = Math.max(shake, 18); flash = Math.max(flash, .25); flashColor = r[2];
+    popText(W / 2, FLOOR * .3, `${r[1]}!`, r[2], 64);
+    ring(W / 2, FLOOR * .3, U * 3, r[2]);
+  }
+  if (combo > comboBest) { comboBest = combo; store.set('comboBest', comboBest); }
+}
+function endCombo() {
+  if (combo >= 5) {
+    const bonus = Math.round(comboBank * .5 + combo * 3 * meterMult());
+    addBucks(bonus);
+    popText(W / 2, FLOOR * .42, `COMBO x${combo}  +$${bonus}`, '#ffd84d', 42);
+    sfx('cash');
+  }
+  combo = 0; comboBank = 0; comboSmall = 0;
+}
+function limitBreak() {
+  painMeter = Math.max(0, painMeter - 100);
+  const maxed = tier >= TIERS.length - 1;
+  if (!maxed) tier++;
+  const m = meterMult();
+  sfx('limit'); shake = Math.max(shake, 30); flash = .7; flashColor = '#fff3a3'; hitStop = .15;
+  popText(W / 2, FLOOR * .36, maxed ? 'MAX PAIN! +$' + 500 * m : `LIMIT BREAK! ${m}X`, '#ffd84d', 60);
+  if (maxed) addBucks(500 * m);
+  const bar = $('meter'); bar.classList.remove('break'); void bar.offsetWidth; bar.classList.add('break');
+  meterShards();
+  toast(`💥 Pain meter LIMIT BREAK! Bucks now ${m}X`, 2200);
   if (phasesUnlocked < PHASES.length) {
     phasesUnlocked++; store.set('phases', phasesUnlocked); shopHasNew = true;
     const n = phasesUnlocked;
-    setTimeout(() => toast(`🏪 Shop Phase ${n}: ${PHASES[n - 1].name} unlocked!`, 3000), 2700);
+    setTimeout(() => toast(`🏪 Shop Phase ${n}: ${PHASES[n - 1].name} unlocked!`, 3000), 2400);
     buildTools(); if (shopOpen) renderShop();
   }
 }
-function updateMeter(dt) {
-  if (bonusT > 0) {
-    bonusT = Math.max(0, bonusT - dt);
-    painMeter = 100 * bonusT / BONUS_TIME;
+// glass shards fly off the meter when it breaks its limit
+function meterShards() {
+  const r = $('meter').querySelector('.bar').getBoundingClientRect();
+  for (let i = 0; i < 16; i++) {
+    const s = document.createElement('i'); s.className = 'shard';
+    s.style.left = (r.left + Math.random() * r.width) + 'px'; s.style.top = (r.top + Math.random() * r.height) + 'px';
+    s.style.setProperty('--dx', rand(-120, 160) + 'px'); s.style.setProperty('--dy', rand(-40, 160) + 'px'); s.style.setProperty('--r', rand(-400, 400) + 'deg');
+    s.style.background = `hsl(${40 + tier * 25}, 100%, ${rand(55, 80)}%)`;
+    document.body.appendChild(s); setTimeout(() => s.remove(), 800);
   }
-  $('meterFill').style.width = painMeter.toFixed(1) + '%';
-  const on = bonusT > 0, m = $('meter');
-  if (m.classList.contains('bonus') !== on) { m.classList.toggle('bonus', on); $('meterTag').textContent = on ? '2X' : '1X'; }
-  if ((meterSaveT -= dt) <= 0) { meterSaveT = 2; store.set('meter', painMeter); store.set('bonusT', bonusT); }
+}
+function updateMeter(dt) {
+  meterIdle += dt;
+  if (meterIdle > 4) { // drains when you stop hurting him
+    painMeter -= dt * 7 * (1 + tier * .25);
+    if (painMeter < 0) {
+      if (tier > 0) { tier--; painMeter = 70; popText(W / 2, FLOOR * .36, `${meterMult()}X`, '#aaa', 34); sfx('deny'); }
+      else painMeter = 0;
+    }
+  }
+  if (comboT > 0 && (comboT -= dt) <= 0 && combo > 0) endCombo();
+  comboPop = Math.max(0, comboPop - dt * 5);
+  $('meterFill').style.width = clamp(painMeter, 0, 100).toFixed(1) + '%';
+  const m = $('meter'), txt = meterMult() + 'X';
+  if ($('meterTag').textContent !== txt) {
+    $('meterTag').textContent = txt;
+    m.classList.toggle('bonus', tier > 0);
+    m.style.setProperty('--hue', 40 + tier * 25);
+  }
+  if ((meterSaveT -= dt) <= 0) { meterSaveT = 2; store.set('meter', painMeter); store.set('tier', tier); }
 }
 function koBoodie(B) {
   if (B.ko) return;
@@ -520,7 +604,8 @@ function doPunch(x, y, w = {}) {
   addVel(B.P[h.i], dx * f * 1.2, -f * .35);
   kickNeighbors(B, h.i, dx * f * .5, -f * .15);
   knock(B, 0);
-  sfx(w.snd || 'punch'); shake = Math.max(shake, 6);
+  sfx(w.snd || 'punch'); shake = Math.max(shake, 9);
+  parts.push({ type: 'burst', x, y, vx: 0, vy: 0, life: .18, max: .18, size: B.u * .9, color: '#fff' });
   hurt(B, w.dmg || 6); wound(B, h.f, (w.dmg || 6) * 1.1);
   addDecal(B, h.f, x, y, 'bruise', 0, rand(.8, 1.2));
   if (Math.random() < .35) addDecal(B, h.f, x + rand(-6, 6), y + rand(-6, 6), 'blood', rand(0, 6), rand(.6, 1));
@@ -1152,7 +1237,7 @@ function nukeBlast(x, y) {
   whiteT = NUKE_WHITEOUT + 1.2; // solid white, then fades
   // jackpot for nuking Arham: huge for a direct hit, still big otherwise
   const [ax, ay] = bodyCenter(arham), direct = Math.hypot(ax - x, ay - y) < U * 3;
-  const prize = (direct ? NUKE_PRIZE : NUKE_PRIZE / 4) * (bonusT > 0 ? 2 : 1);
+  const prize = Math.round((direct ? NUKE_PRIZE : NUKE_PRIZE / 4) * meterMult());
   addBucks(prize);
   setTimeout(() => { popText(W / 2, FLOOR * .45, `+$${prize}${direct ? ' DIRECT HIT!' : ''}`, '#ffd84d', 52); toast(`☢ Nuked ${buddyName}: +$${prize}!`, 3000); }, NUKE_WHITEOUT * 1000);
   for (const B of bodies()) { B.char = Math.min(1, B.char + .5); const [gx, gy] = bodyCenter(B); gibs(gx, gy, 25, 2.2); }
@@ -1610,7 +1695,7 @@ cv.addEventListener('contextmenu', e => e.preventDefault());
 const ITER = 10;
 function stepBody(B, dt, G) {
   const u = B.u, P = B.P, MAXV = u * .6;
-  B.voiceCd -= dt; B.sinceHurt += dt; B.thrownT -= dt;
+  B.voiceCd -= dt; B.sinceHurt += dt; B.thrownT -= dt; B.flash = Math.max(0, (B.flash || 0) - dt);
   if (!B.ko || B.kind === 'arham') B.pain = Math.max(0, B.pain - dt * (B.pain > 70 ? 6 : 10));
   B.zapped = Math.max(0, B.zapped - dt);
   if (B.bubble && (B.bubble.t -= dt) <= 0) B.bubble = null;
@@ -1707,6 +1792,13 @@ function step(dt) {
   time += dt;
   const G = grav();
   updateMeter(dt);
+  camKick *= .85;
+  if (dmgAcc >= 1 && performance.now() - dmgT > 70) {
+    const v = Math.round(dmgAcc), c = dmgCrit ? '#ff3b3b' : v >= 25 ? '#ff7b00' : v >= 10 ? '#ffd84d' : '#ffffff';
+    parts.push({ type: 'text', x: dmgX + rand(-15, 15), y: dmgY - 20, vx: rand(-1.5, 1.5), vy: -3, life: .8, max: .8, size: clamp(20 + v * .9, 20, 64), color: c, text: v + (dmgCrit ? '!' : ''), rot: rand(-.2, .2) });
+    if (v >= 8) parts.push({ type: 'burst', x: dmgX, y: dmgY, vx: 0, vy: 0, life: .22, max: .22, size: U * clamp(v / 12, .6, 2.5), color: c });
+    dmgAcc = 0; dmgCrit = false; dmgT = performance.now();
+  }
   if (flipT > 0) { flipT -= dt; knock(arham, 0); if (flipT <= 0) { gravDir = 1; popText(W / 2, FLOOR * .4, 'Gravity restored', '#c77dff', 30); } }
   if (laserBeam) laserBeam = null;
   idleTimer += dt;
@@ -1859,6 +1951,7 @@ function draw() {
   ctx.drawImage(bg, 0, 0, W, H);
   ctx.save();
   if (shake > .5) ctx.translate(rand(-shake, shake) * .6, rand(-shake, shake) * .6);
+  if (camKick > .002) { ctx.translate(camFX, camFY); ctx.scale(1 + camKick, 1 + camKick); ctx.translate(-camFX, -camFY); }
 
   for (const m of wallMarks) {
     ctx.globalAlpha = clamp(m.life / 5, 0, 1);
@@ -1925,6 +2018,13 @@ function draw() {
       ctx.beginPath(); ctx.moveTo(q.x, q.y); ctx.lineTo(q.x - q.vx * .8, q.y - q.vy * .8); ctx.stroke();
     } else if (q.type === 'gib') {
       drawGib(q, a);
+    } else if (q.type === 'burst') { // anime impact lines
+      ctx.strokeStyle = q.color; ctx.lineCap = 'round';
+      const t = 1 - a;
+      for (let k = 0; k < 12; k++) {
+        const an = k / 12 * Math.PI * 2 + (k % 2) * .2, r0 = q.size * (.35 + t * .6), r1 = q.size * (.8 + t * .9) * (k % 2 ? .75 : 1);
+        ctx.lineWidth = 5 * a; ctx.beginPath(); ctx.moveTo(q.x + Math.cos(an) * r0, q.y + Math.sin(an) * r0); ctx.lineTo(q.x + Math.cos(an) * r1, q.y + Math.sin(an) * r1); ctx.stroke();
+      }
     } else if (q.type === 'ring') {
       ctx.strokeStyle = q.color; ctx.lineWidth = 4 * a;
       ctx.beginPath(); ctx.arc(q.x, q.y, q.size * (1.3 - a), 0, 7); ctx.stroke();
@@ -1955,6 +2055,7 @@ function draw() {
   for (const B of bodies()) drawBubble(B);
   ctx.restore();
 
+  drawComboHud();
   if (flipT > 0) {
     ctx.font = '900 22px "Trebuchet MS", sans-serif'; ctx.textAlign = 'center'; ctx.lineWidth = 5; ctx.strokeStyle = '#000'; ctx.fillStyle = '#e0aaff';
     const t = `🙃 GRAVITY FLIPPED ${flipT.toFixed(1)}s`; ctx.strokeText(t, W / 2, 110); ctx.fillText(t, W / 2, 110);
@@ -1972,8 +2073,25 @@ function draw() {
   if (flash > 0) { ctx.globalAlpha = Math.min(flash, .85); ctx.fillStyle = flashColor; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
 }
 
+function drawComboHud() {
+  if (combo < 2) return;
+  const r = comboRank(), c = r ? r[2] : '#ffffff', x = 16, y = 140, s = 1 + comboPop * .35;
+  ctx.save(); ctx.translate(x, y); ctx.scale(s, s); ctx.rotate(-.06);
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; ctx.lineJoin = 'round';
+  ctx.font = `900 ${Math.min(64, 34 + combo * .3)}px "Trebuchet MS", sans-serif`;
+  ctx.lineWidth = 8; ctx.strokeStyle = '#000'; ctx.strokeText(`x${combo}`, 0, 0); ctx.fillStyle = c; ctx.fillText(`x${combo}`, 0, 0);
+  ctx.font = '900 18px "Trebuchet MS", sans-serif'; ctx.lineWidth = 5;
+  const label = (r ? r[1] + ' ' : '') + 'COMBO';
+  ctx.strokeText(label, 0, 24); ctx.fillStyle = '#fff'; ctx.fillText(label, 0, 24);
+  ctx.font = '800 14px "Trebuchet MS", sans-serif';
+  const bonus = `$ x${(comboMult() * meterMult()).toFixed(1)}`; ctx.strokeText(bonus, 0, 44); ctx.fillStyle = '#ffd84d'; ctx.fillText(bonus, 0, 44);
+  ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(0, 52, 120, 6);
+  ctx.fillStyle = c; ctx.fillRect(0, 52, 120 * clamp(comboT / COMBO_WINDOW, 0, 1), 6);
+  ctx.restore();
+}
 function col(B, part) {
   const base = B.colors[part];
+  if (B.flash > 0) return mix(base, '#ffffff', Math.min(.85, B.flash * 10));
   if (B.zapped > 0 && (time * 20 | 0) % 2 === 0) return part === 'skin' ? '#fffbe0' : '#1a1a1a';
   return B.char > 0 ? mix(base, '#2a1d15', B.char * .75) : base;
 }
@@ -2596,6 +2714,7 @@ function loop(now) {
   acc += Math.min(.1, (now - last) / 1000); last = now;
   const DT = 1 / 60;
   if (!gateOpen) { last = now; acc = 0; requestAnimationFrame(loop); return; }
+  if (hitStop > 0) { hitStop -= Math.min(acc, .1); acc = 0; } // freeze frame on big hits
   while (acc >= DT) { step(DT); acc -= DT; }
   draw();
   if (shopOpen) drawKeeper(DT);

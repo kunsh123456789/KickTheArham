@@ -20,8 +20,10 @@ to regenerate `KickTheArham.html`.
   5. **Cartoon Chaos**: Rubber Chicken, Cream Pie, Bees, Piano, Nuke
 - **Original weapons**: Hand (grab and fling), Punch, Knife, Bowling ball, Pistol, Bomb, Flamethrower, Anvil, Zeus lightning
 - **Boodie** ($1500): a blonde brawler who spawns in and beats up Arham with jabs, kicks, slaps, headbutts and stomps. Any harm to her KOs her instantly, and a KO'd Boodie fades away after a few seconds (🧹 also removes her); her icon stays red until she is KO'd, and spawning a new one replaces the old one.
-- **Bucks 💰**: earn money (slowly!) by hurting the buddy and spend it to unlock weapons
-- **Pain meter**: fills slowly as Arham takes damage; when full, bucks are doubled for 30 seconds while it drains
+- **Bucks 💰**: earn money by hurting the buddy and spend it in the shop
+- **Combos**: chain hits for ranks (NICE → GREAT → BRUTAL → SAVAGE → INSANE → MASSACRE → GODLIKE → UNSTOPPABLE), a rising money multiplier and a cash-out bonus
+- **Pain meter LIMIT BREAK**: each fill breaks the meter to the next multiplier (2X, 3X, 4X, 5X, 10X … 100X); it drains and drops a tier if you stop
+- **Hit feel**: freeze frames, camera punch, critical hits, damage numbers, impact lines
 - **Gore**: every body part takes damage separately, going from exposed muscle to exposed bone to a broken bone. Ribs and guts show through the torso and the skull cracks. Flesh chunks, organs, intestines and bone shards fly, and blood pools, drips and splatters.
 - **Broken bones can be ripped out**: grab a broken limb with the Hand and yank hard. The bone drops as a prop you can throw, and the stump spurts blood.
 - **Nurse station 🏥**: Nurse Nancy walks in to bandage him (stops the bleeding) or do full surgery (sets bones and reattaches limbs)

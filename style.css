@@ -190,3 +190,16 @@ html, body {
 #gateMsg { color: #ff6b7a; min-height: 1.2em; font-size: 13px; }
 #gateForm.shake { animation: gshake .35s; }
 @keyframes gshake { 0%,100% { transform: none; } 25% { transform: translateX(-10px); } 75% { transform: translateX(10px); } }
+
+/* limit-breaking pain meter */
+#meter { --hue: 40; }
+#meter.bonus #meterFill { background: linear-gradient(90deg, hsl(var(--hue), 100%, 55%), hsl(calc(var(--hue) + 30), 100%, 65%), #fff); animation: pulseFill .5s infinite alternate; }
+#meter.bonus .bar { box-shadow: 0 3px 0 #000, 0 0 14px hsl(var(--hue), 100%, 60%); }
+#meter.bonus #meterTag { background: hsl(var(--hue), 100%, 60%); color: #1b1200; font-size: 14px; }
+@keyframes pulseFill { from { filter: brightness(1); } to { filter: brightness(1.35); } }
+#meter.break .bar { animation: meterBreak .5s ease-out; }
+#meter.break #meterTag { animation: tagPop .6s ease-out; }
+@keyframes meterBreak { 0% { transform: scale(1); } 15% { transform: scale(1.35) rotate(-4deg); filter: brightness(3); } 40% { transform: scale(.9) rotate(3deg); } 100% { transform: none; } }
+@keyframes tagPop { 0% { transform: scale(1); } 30% { transform: scale(2.2) rotate(-10deg); } 100% { transform: scale(1); } }
+.shard { position: fixed; width: 8px; height: 5px; z-index: 40; pointer-events: none; border: 1px solid #000; animation: shardFly .8s ease-out forwards; }
+@keyframes shardFly { to { transform: translate(var(--dx), var(--dy)) rotate(var(--r)); opacity: 0; } }
