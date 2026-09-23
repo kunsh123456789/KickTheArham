@@ -213,6 +213,8 @@ html, body {
 
 #shop.ph6 { --sb: linear-gradient(#3a3a3a 0 45%, #2a2a2a 45% 55%, #3a3a3a 55%); --acc: #ffd60a; }
 
+#shop.ph7 { --sb: linear-gradient(135deg, #ff9e00, #ff0a54 55%, #9d4edd); --acc: #fff275; }
+
 </style>
 </head>
 <body>
@@ -404,6 +406,13 @@ const TOOLS = [
   { id: 'rocket', phase: 6, name: 'Rocket Car', icon: '🏎️', price: 1500, desc: 'Mach 5. Launches him to the ceiling.' },
   { id: 'train', phase: 6, name: 'Freight Train', icon: '🚂', price: 2500, desc: 'Choo choo! Very long, very fast.' },
   { id: 'orbital', phase: 6, name: 'Orbital Cannon', icon: '🛰️', price: 6000, desc: 'Locks on from space. Vaporizes.' },
+  { id: 'pin', phase: 7, name: 'Pin', icon: '📌', price: 0, desc: 'Tap a body part to nail it in place. Tap again to free it.' },
+  { id: 'boot', phase: 7, name: 'Giant Boot', icon: '🥾', price: 400, desc: 'A colossal boot stomps him flat.' },
+  { id: 'glove', phase: 7, name: 'Boxing Glove', icon: '🥊', price: 550, desc: 'Spring-loaded glove yeets him across the room.' },
+  { id: 'fan', phase: 7, name: 'Giant Fan', icon: '💨', price: 650, desc: 'Blows him into the far wall.' },
+  { id: 'tornado', phase: 7, name: 'Tornado', icon: '🌪️', price: 900, desc: 'Sucks him up and spins him silly.' },
+  { id: 'magnet', phase: 7, name: 'Giant Magnet', icon: '🧲', price: 1100, desc: 'Yanks him up into the air.' },
+  { id: 'whale', phase: 7, name: 'Falling Whale', icon: '🐋', price: 1800, desc: 'A whale plummets from the sky. Squish.' },
 ];
 
 // ---------- ragdoll definition (units of u, relative to feet on floor) ----------
@@ -544,6 +553,7 @@ function sfx(kind, strength = 1) {
       break;
     }
     case 'pop': tone(600, 1200, .08, 'sine', .25); break;
+    case 'pin': tone(1400, 500, .08, 'triangle', .2); noise(.05, .3, 4000, 'highpass'); break;
     case 'smg': noise(.08, .5, 3000); tone(250, 80, .06, 'square', .12); break;
     case 'squeak': tone(1100, 1700, .12, 'square', .12); tone(1700, 900, .15, 'square', .1, .1); break;
     case 'splat': sweep(.3, .8, 300, 900, 120, 3); tone(160, 50, .2, 'sine', .35); break;
@@ -1580,6 +1590,14 @@ const ACTIONS = {
   bike: () => driveVehicle('bike'), car: () => driveVehicle('car'), icecream: () => driveVehicle('icecream'), truck: () => driveVehicle('truck'),
   monster: () => driveVehicle('monster'), roller: () => driveVehicle('roller'), rocket: () => driveVehicle('rocket'), train: () => driveVehicle('train'),
   orbital: x => orbitalStrike(x),
+  boot: x => giantBoot(x), glove: () => boxingGlove(), fan: () => bigFan(), tornado: () => tornado(), magnet: x => magnet(x), whale: x => whaleDrop(x),
+  pin: (x, y) => {
+    const h = hitAny(x, y, .25);
+    if (!h) { sfx('deny'); return; }
+    const B = h.B;
+    if (B.pinned[h.i]) { B.pinned[h.i] = null; sfx('pop'); popText(x, y - 12, 'UNPINNED', '#9be564', 24); }
+    else { B.pinned[h.i] = { x: B.P[h.i].x, y: B.P[h.i].y }; sfx('pin'); popText(x, y - 12, 'PINNED!', '#ff5d73', 26); ring(x, y, B.u * .5, '#ff5d73'); }
+  },
   piano: x => { const a = addProp('piano', x, -U * 1.5); addVel(a, 0, -U * .1); sfx('whoosh'); },
 };
 // hold-to-use tools, run every step while the pointer is down
@@ -1604,6 +1622,7 @@ function initGore(B) {
   B.spurts = [];
   B.gutsOut = false;
   B.attached = new Array(14).fill(true);
+  B.pinned = new Array(14).fill(null);
 }
 function attachedSet(B) {
   const adj = Array.from({ length: 14 }, () => []);
@@ -2169,6 +2188,223 @@ function orbitalStrike(tx) {
   ents.push(e);
 }
 
+// ---------- wacky gadgets (always-open shop tab) ----------
+function nearBodies(x, y, r, fn) {
+  for (const B of bodies()) B.P.forEach((p, i) => { const d = Math.hypot(p.x - x, p.y - y); if (d < r) fn(B, p, i, d); });
+}
+
+// Giant Boot: stomps down from the ceiling onto the tapped spot
+function giantBoot(tx) {
+  const e = { x: clamp(tx, U, W - U), y: -U * 3, vy: 0, state: 'drop', t: 0 };
+  sfx('whoosh');
+  e.u = dt => {
+    if (e.state === 'drop') {
+      e.vy += U * .05; e.y += e.vy;
+      if (e.y >= FLOOR - U * 1.6) {
+        e.y = FLOOR - U * 1.6; e.state = 'hold'; e.t = 0;
+        sfx('crash'); sfx('splat'); shake = Math.max(shake, 30); hitStop = Math.max(hitStop, .1);
+        nearBodies(e.x, FLOOR, U * 1.4, (B, p, i, d) => {
+          p.y = Math.max(p.y, FLOOR - p.r * .6); p.py = p.y;
+          addVel(p, (p.x - e.x) * .04, 0);
+          hurt(B, 22 * (1 - d / (U * 1.4))); woundPoint(B, i, 30); knock(B, 0);
+        });
+        const [cx, cy] = bodyCenter(arham); popText(cx, cy - U, 'STOMP!', '#ffd84d', 46);
+        blood(e.x, FLOOR - 6, 24, 1.6); dust(e.x, 16);
+      }
+    } else { e.t += dt; if (e.t > .6) { e.y -= U * .12; if (e.y < -U * 3) return false; } }
+    return true;
+  };
+  e.d = () => {
+    const x = e.x, y = e.y, u = U;
+    ctx.save(); ctx.translate(x, y); ctx.lineWidth = 4; ctx.strokeStyle = '#111';
+    ctx.fillStyle = '#5b3a1a'; ctx.beginPath(); ctx.roundRect(-u * .55, -u * 1.6, u * 1.0, u * 1.4, 12); ctx.fill(); ctx.stroke(); // leg
+    ctx.fillStyle = '#6b4423'; ctx.beginPath(); ctx.roundRect(-u * .8, -u * .4, u * 1.9, u * .55, [10, 20, 14, 14]); ctx.fill(); ctx.stroke(); // foot
+    ctx.fillStyle = '#3a2412'; ctx.beginPath(); ctx.roundRect(-u * .85, u * .05, u * 2.0, u * .2, 6); ctx.fill(); ctx.stroke(); // sole
+    ctx.strokeStyle = '#caa472'; ctx.lineWidth = 3; for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.moveTo(-u * .4, -u * 1.4 + k * u * .35); ctx.lineTo(u * .3, -u * 1.4 + k * u * .35); ctx.stroke(); }
+    ctx.restore();
+  };
+  ents.push(e);
+}
+
+// Tornado: a spinning funnel that sweeps in, sucks him up and spits him out
+function tornado() {
+  const dir = bodyCenter(arham)[0] > W / 2 ? -1 : 1;
+  const e = { x: dir > 0 ? -U : W + U, dir, t: 0, life: 6, debris: [] };
+  sfx('fwoosh');
+  e.u = dt => {
+    e.t += dt; e.life -= dt;
+    e.x += dir * U * .04 + Math.sin(e.t * 2) * U * .015;
+    e.x = clamp(e.x, U, W - U);
+    nearBodies(e.x, FLOOR - U * 1.5, U * 2.2, (B, p, i, d) => {
+      const ang = e.t * 12 + i, lift = clamp(1 - (FLOOR - p.y) / (U * 4), .2, 1);
+      addVel(p, (e.x - p.x) * .04 + Math.cos(ang) * U * .04, -U * .05 * lift + Math.sin(ang) * U * .02);
+      knock(B, 0);
+      if (Math.random() < dt * 6) { hurt(B, 2); }
+    });
+    if (Math.random() < .4) e.debris.push({ a: rand(0, 7), r: rand(U, U * 2), y: rand(-U * 3.5, 0), s: rand(3, 6) });
+    for (const d of e.debris) { d.a += dt * 8; d.y += dt * 4; }
+    e.debris = e.debris.filter(d => d.y < U);
+    if (Math.random() < .3) sfx('fwoosh');
+    if (e.life <= 0) { nearBodies(e.x, FLOOR - U * 2, U * 2.5, (B, p) => addVel(p, e.dir * U * .3, -U * .2)); return false; }
+    return true;
+  };
+  e.d = () => {
+    const x = e.x, u = U;
+    ctx.save(); ctx.globalAlpha = clamp(Math.min(e.t * 2, e.life), 0, 1) * .85;
+    for (let k = 0; k < 9; k++) {
+      const yy = FLOOR - k * u * .45, wobble = Math.sin(e.t * 8 + k) * u * .12;
+      const w = u * (.25 + k * .28);
+      ctx.fillStyle = k % 2 ? 'rgba(150,150,160,.5)' : 'rgba(190,190,200,.4)';
+      ctx.beginPath(); ctx.ellipse(x + wobble, yy, w, u * .22, 0, 0, 7); ctx.fill();
+    }
+    ctx.globalAlpha = clamp(Math.min(e.t * 2, e.life), 0, 1);
+    for (const d of e.debris) { ctx.fillStyle = '#8a6d3b'; ctx.beginPath(); ctx.arc(x + Math.cos(d.a) * d.r, FLOOR - u * 2 + d.y, d.s, 0, 7); ctx.fill(); }
+    ctx.restore();
+  };
+  ents.push(e);
+}
+
+// Magnet: a giant horseshoe magnet lowers from the ceiling and yanks him up by the metal in his bones
+function magnet(tx) {
+  const e = { x: clamp(tx, U, W - U), y: -U * 2, state: 'down', t: 0 };
+  sfx('engineHi');
+  e.u = dt => {
+    e.t += dt;
+    if (e.state === 'down') { e.y += U * .05; if (e.y > U * 1.2) e.state = 'pull'; }
+    else if (e.state === 'pull') {
+      const my = e.y + U * 1.1;
+      nearBodies(e.x, my, U * 6, (B, p, i, d) => {
+        const f = clamp(U * 4 / (d + U), .2, 2) * U * .03;
+        addVel(p, (e.x - p.x) / (d + 1) * f * 10, (my - p.y) / (d + 1) * f * 10);
+        knock(B, 0);
+        if (p.y < my + U && Math.random() < dt * 3) hurt(B, 1);
+      });
+      if (Math.random() < .5) spawn('spark', e.x + rand(-U, U), my + rand(0, U * 2), 0, -3, .3, 2, '#72efdd');
+      if (e.t > 4) e.state = 'up';
+    } else { e.y -= U * .06; if (e.y < -U * 2) { nearBodies(e.x, e.y + U * 4, U * 5, (B, p) => addVel(p, 0, U * .3)); return false; } }
+    return true;
+  };
+  e.d = () => {
+    const x = e.x, y = e.y, u = U;
+    ctx.strokeStyle = '#444'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(x, -60); ctx.lineTo(x, y - u * .5); ctx.stroke();
+    ctx.save(); ctx.translate(x, y); ctx.lineWidth = 4; ctx.strokeStyle = '#111'; ctx.lineJoin = 'round';
+    ctx.fillStyle = '#c1121f';
+    ctx.beginPath();
+    ctx.moveTo(-u * .7, 0); ctx.lineTo(-u * .7, u); ctx.lineTo(-u * .3, u); ctx.lineTo(-u * .3, u * .3);
+    ctx.arc(0, u * .3, u * .3, Math.PI, 0, true); ctx.lineTo(u * .3, u); ctx.lineTo(u * .7, u); ctx.lineTo(u * .7, 0);
+    ctx.arc(0, 0, u * .7, 0, Math.PI); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#dfe6ec'; ctx.fillRect(-u * .7, u * .95, u * .4, u * .35); ctx.strokeRect(-u * .7, u * .95, u * .4, u * .35);
+    ctx.fillRect(u * .3, u * .95, u * .4, u * .35); ctx.strokeRect(u * .3, u * .95, u * .4, u * .35);
+    ctx.restore();
+  };
+  ents.push(e);
+}
+
+// Boxing Glove: a spring-loaded glove rockets in from the side and cross-checks him across the room
+function boxingGlove() {
+  const [ax] = bodyCenter(arham), dir = ax > W / 2 ? 1 : -1;
+  const e = { x: dir > 0 ? -U : W + U, y: FLOOR - U * 2.4, dir, t: 0, hit: false, springLen: 0 };
+  sfx('whoosh');
+  e.u = dt => {
+    e.t += dt;
+    if (!e.hit) {
+      e.x += dir * U * .5; e.springLen = Math.min((e.dir > 0 ? e.x : W - e.x), U * 5);
+      nearBodies(e.x + dir * U * .5, e.y, U * .9, (B, p, i) => {
+        e.hit = true; sfx('punch'); sfx('crash'); shake = Math.max(shake, 20); hitStop = Math.max(hitStop, .1);
+        for (const q of B.P) addVel(q, dir * U * .55, -U * .25);
+        hurt(B, 30); woundPoint(B, i, 20); knock(B, 0);
+        const [cx, cy] = bodyCenter(B); popText(cx, cy - U, pick(['KA-POW!', 'BONK!', 'YEET!']), '#ff5d73', 48);
+        parts.push({ type: 'burst', x: e.x + dir * U * .6, y: e.y, vx: 0, vy: 0, life: .25, max: .25, size: U * 1.5, color: '#fff' });
+      });
+      if ((dir > 0 && e.x > W + U) || (dir < 0 && e.x < -U)) return false;
+    } else { e.x -= dir * U * .35; if ((dir > 0 && e.x < -U) || (dir < 0 && e.x > W + U)) return false; }
+    return true;
+  };
+  e.d = () => {
+    const u = U, y = e.y;
+    ctx.strokeStyle = '#d4d4d4'; ctx.lineWidth = 6; ctx.lineCap = 'round'; // spring/arm
+    const base = e.dir > 0 ? 0 : W;
+    ctx.beginPath(); ctx.moveTo(base, y);
+    const coils = 8, span = e.x - e.dir * u * .5 - base;
+    for (let k = 0; k <= coils; k++) ctx.lineTo(base + span * k / coils, y + (k % 2 ? -u * .2 : u * .2));
+    ctx.stroke();
+    ctx.save(); ctx.translate(e.x, y); ctx.scale(e.dir, 1); ctx.lineWidth = 4; ctx.strokeStyle = '#111';
+    ctx.fillStyle = '#d1121f'; ctx.beginPath(); ctx.roundRect(-u * .5, -u * .5, u * .7, u, 10); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.arc(u * .15, -u * .1, u * .5, -1.3, 1.3); ctx.arc(u * .35, u * .25, u * .28, 1.3, -.4, true); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.fillRect(-u * .5, u * .1, u * .7, u * .14);
+    ctx.restore();
+  };
+  ents.push(e);
+}
+
+// Falling Whale: a startled cartoon whale plummets from the sky and squashes him
+function whaleDrop(tx) {
+  const e = { x: clamp(tx, U, W - U), y: -U * 3, vy: 0, landed: 0 };
+  sfx('engineLo');
+  e.u = dt => {
+    if (e.landed) { e.landed -= dt; if (e.landed <= 0) return false; return true; }
+    e.vy += U * .04; e.y += e.vy;
+    if (e.y >= FLOOR - U * 1.1) {
+      e.y = FLOOR - U * 1.1; e.landed = 1.6;
+      sfx('splat'); sfx('crash'); shake = Math.max(shake, 34); hitStop = Math.max(hitStop, .12);
+      nearBodies(e.x, FLOOR, U * 2.6, (B, p, i, d) => {
+        p.y = Math.max(p.y, FLOOR - p.r * .5); p.py = p.y; addVel(p, (p.x - e.x) * .05, 0);
+        hurt(B, 30 * (1 - d / (U * 2.6))); woundPoint(B, i, 26); knock(B, 0);
+      });
+      const [cx, cy] = bodyCenter(arham); popText(cx, cy - U * 1.2, 'SQUISH!', '#4cc9f0', 50);
+      blood(e.x, FLOOR - 6, 30, 1.8); dust(e.x, 20);
+    }
+    return true;
+  };
+  e.d = () => {
+    const x = e.x, y = e.y, u = U, squash = e.landed ? .78 : 1;
+    ctx.save(); ctx.translate(x, y); ctx.scale(1, squash); ctx.lineWidth = 4; ctx.strokeStyle = '#111'; ctx.lineJoin = 'round';
+    ctx.fillStyle = '#4a90d9'; ctx.beginPath(); ctx.ellipse(0, 0, u * 1.7, u * 1.05, 0, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#bcd8f0'; ctx.beginPath(); ctx.ellipse(-u * .3, u * .35, u * 1.2, u * .55, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#4a90d9'; ctx.beginPath(); ctx.moveTo(u * 1.5, -u * .1); ctx.lineTo(u * 2.2, -u * .7); ctx.lineTo(u * 2.15, u * .1); ctx.lineTo(u * 1.5, u * .3); ctx.closePath(); ctx.fill(); ctx.stroke(); // tail
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(-u * 1.05, -u * .25, u * .2, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(-u * 1.12, -u * .25, u * .09, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#2e5f92'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(-u * 1.3, u * .1); ctx.quadraticCurveTo(-u * 1.5, u * .3, -u * 1.3, u * .45); ctx.stroke(); // worried mouth
+    if (!e.landed) { ctx.strokeStyle = '#9ad1ff'; ctx.lineWidth = 3; for (const s of [-1, 1]) { ctx.beginPath(); ctx.moveTo(-u * .4, -u * .9); ctx.lineTo(-u * .4 + s * u * .3, -u * 1.4); ctx.stroke(); } } // spout
+    ctx.restore();
+  };
+  ents.push(e);
+}
+
+// Fan: a giant desk fan blows him and everything into the far wall
+function bigFan() {
+  const [ax] = bodyCenter(arham), dir = ax > W / 2 ? 1 : -1;
+  const e = { x: dir > 0 ? U * .8 : W - U * .8, dir, t: 0, life: 5, blade: 0 };
+  sfx('engine');
+  e.u = dt => {
+    e.t += dt; e.life -= dt; e.blade += dt * 40;
+    nearBodies(e.x, FLOOR - U * 1.6, U * 12, (B, p, i, d) => {
+      if ((p.x - e.x) * dir < 0) return;
+      addVel(p, dir * U * .08 * clamp(2 - d / (U * 6), .2, 2), -U * .01 + Math.sin(e.t * 20 + i) * U * .01);
+      knock(B, 0);
+    });
+    for (const q of props) if ((q.x - e.x) * dir > 0 && Math.abs(q.y - (FLOOR - U * 1.6)) < U * 3) addVel(q, dir * U * .05, 0);
+    if (Math.random() < .3) sfx('fwoosh');
+    if (e.life <= 0) return false;
+    return true;
+  };
+  e.d = () => {
+    const x = e.x, y = FLOOR - U * 1.6, u = U;
+    ctx.strokeStyle = '#333'; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, FLOOR); ctx.stroke(); // stand
+    ctx.fillStyle = '#555'; ctx.beginPath(); ctx.ellipse(x, FLOOR, u * .5, u * .15, 0, 0, 7); ctx.fill();
+    ctx.save(); ctx.translate(x, y); ctx.scale(e.dir, 1);
+    ctx.fillStyle = '#8a8f98'; ctx.strokeStyle = '#111'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, u * 1.05, 0, 7); ctx.fill(); ctx.stroke(); // cage
+    ctx.save(); ctx.rotate(e.blade);
+    ctx.fillStyle = '#c8ccd2'; for (let k = 0; k < 4; k++) { ctx.rotate(Math.PI / 2); ctx.beginPath(); ctx.ellipse(u * .45, 0, u * .5, u * .28, 0, 0, 7); ctx.fill(); ctx.stroke(); }
+    ctx.restore();
+    ctx.fillStyle = '#444'; ctx.beginPath(); ctx.arc(0, 0, u * .2, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,.25)'; ctx.lineWidth = 4;
+    for (let k = 0; k < 4; k++) { const yy = -u * .6 + k * u * .4; ctx.beginPath(); ctx.moveTo(u * 1.2, yy); ctx.lineTo(u * 3.5, yy + Math.sin(e.t * 10 + k) * u * .2); ctx.stroke(); }
+    ctx.restore();
+  };
+  ents.push(e);
+}
+
 // ---------- input ----------
 cv.addEventListener('pointerdown', e => {
   initAudio();
@@ -2284,6 +2520,7 @@ function solveBody(B, it) {
     b.x -= dx * diff * wb; b.y -= dy * diff * wb;
   }
   if (grab && grab.B === B) { const p = grab.ref; p.x += (pointer.x - p.x) * .3; p.y += (pointer.y - p.y) * .3; }
+  for (let i = 0; i < 14; i++) { const pin = B.pinned[i]; if (pin) { const p = P[i]; p.x = pin.x; p.y = pin.y; p.px = pin.x; p.py = pin.y; } }
   for (const p of P) collideWalls(B, p, it === 0);
 }
 function collideBodies(A, B) {
@@ -2497,6 +2734,7 @@ function draw() {
     ctx.fillStyle = 'rgba(0,0,0,.25)';
     ctx.beginPath(); ctx.ellipse(bcx, FLOOR + 4, B.u * 1.1, B.u * .15, 0, 0, 7); ctx.fill();
   }
+  for (const B of bodies()) for (let i = 0; i < 14; i++) if (B.pinned[i]) drawPin(B.P[i]);
   for (const B of bodies()) {
     ctx.globalAlpha = B.ko ? clamp(BOODIE_FADE + 1 - B.koT, 0, 1) : 1;
     drawBuddy(B);
@@ -2586,6 +2824,15 @@ function draw() {
   if (flash > 0) { ctx.globalAlpha = Math.min(flash, .85); ctx.fillStyle = flashColor; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
 }
 
+function drawPin(p) {
+  ctx.save(); ctx.translate(p.x, p.y);
+  ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(2, 2, 9, 9, 0, 0, 7); ctx.fill();
+  ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 13); ctx.stroke();
+  ctx.fillStyle = '#e63946'; ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(0, -4, 8, 0, 7); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.beginPath(); ctx.arc(-3, -6, 3, 0, 7); ctx.fill();
+  ctx.restore();
+}
 function drawComboHud() {
   if (combo < 2) return;
   const r = comboRank(), c = r ? r[2] : '#ffffff', x = 16, y = 140, s = 1 + comboPop * .35;
@@ -2912,6 +3159,7 @@ const PHASES = [
   { name: 'Cosmic', desc: 'Imported from outer space. Warranty void on Earth.' },
   { name: 'Cartoon Chaos', desc: 'Physics has left the building.' },
   { name: 'Vehicles', desc: 'Park directly on him. Always open.', always: true, tab: '🚗' },
+  { name: 'Wacky', desc: 'Cartoon physics gone wrong. Always open.', always: true, tab: '🤪' },
 ];
 // The shopkeeper. Change anything here to restyle or rename him.
 const SHOPKEEPER = {
@@ -2919,7 +3167,7 @@ const SHOPKEEPER = {
   title: 'Proprietor of Pain',
   skin: '#c98b5b', hair: '#2d1b10', shirt: '#f4a261', apron: '#264653',
   mustache: true, glasses: true, beard: false,
-  hats: ['cap', 'fire', 'army', 'space', 'clown', 'cap'], // one per shop phase: cap | fire | army | space | clown | none
+  hats: ['cap', 'fire', 'army', 'space', 'clown', 'cap', 'clown'], // one per shop phase: cap | fire | army | space | clown | none
   lines: {
     hello: ["Welcome, welcome! Everything's for sale.", 'Back again? {n} still standing?', 'Hurt him a little, earn a little.', 'Browse all you like. Touching costs extra.'],
     buy: ['Pleasure doing business!', 'No refunds!', 'Ooh, {n} is gonna feel that.', 'Excellent choice.', 'Enjoy responsibly. Or not.'],
@@ -3162,7 +3410,7 @@ $('shopScrim').onclick = () => openShop(false);
 $('keeperName').textContent = `${SHOPKEEPER.name}, ${SHOPKEEPER.title}`;
 $('btnNoFace').onclick = () => { store.set('face', null); loadFace(null); };
 $('btnMute').onclick = () => { muted = !muted; store.set('muted', muted); $('btnMute').textContent = muted ? '🔇' : '🔊'; initAudio(); };
-$('btnClear').onclick = () => { props = []; ents = []; nurseOnDuty = false; gravDir = 1; flipT = 0; boodie = null; refreshTools(); for (const B of bodies()) { B.decals = []; B.bleed = 0; B.swell = 0; } floorStains = []; wallMarks = []; parts = []; grab = null; };
+$('btnClear').onclick = () => { props = []; ents = []; nurseOnDuty = false; gravDir = 1; flipT = 0; boodie = null; refreshTools(); for (const B of bodies()) { B.decals = []; B.bleed = 0; B.swell = 0; B.pinned = new Array(14).fill(null); } floorStains = []; wallMarks = []; parts = []; grab = null; };
 $('btnReset').onclick = () => {
   arham = makeBody('arham', W / 2); boodie = null; nurseOnDuty = false;
   props = []; ents = []; gravDir = 1; flipT = 0; parts = []; floorStains = []; wallMarks = []; grab = null;

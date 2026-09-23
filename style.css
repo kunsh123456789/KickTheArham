@@ -205,3 +205,5 @@ html, body {
 @keyframes shardFly { to { transform: translate(var(--dx), var(--dy)) rotate(var(--r)); opacity: 0; } }
 
 #shop.ph6 { --sb: linear-gradient(#3a3a3a 0 45%, #2a2a2a 45% 55%, #3a3a3a 55%); --acc: #ffd60a; }
+
+#shop.ph7 { --sb: linear-gradient(135deg, #ff9e00, #ff0a54 55%, #9d4edd); --acc: #fff275; }
