@@ -16,10 +16,10 @@ to regenerate `KickTheArham.html`.
   1. **Starter Stuff**: Hand, Punch, Knife, Bowling ball, Pistol, Bomb, Flamethrower, Anvil, Zeus, Boodie
   2. **Inferno**: Molotov, Firework, Fireball, Lava Rain, Napalm strike
   3. **Warzone**: Grenade, Landmine, SMG, Rocket launcher, Airstrike, Tank
-  4. **Cosmic**: Laser, Gravity Flip, Black Hole, Meteor, UFO abduction
+  4. **Cosmic**: Laser, Gravity Control (rotate gravity to any wall), Black Hole, Meteor, UFO abduction
   5. **Cartoon Chaos**: Rubber Chicken, Cream Pie, Bees, Piano, Nuke
   - **🚗 Vehicles** (always open): Dirt Bike, Car, Ice Cream Truck, Truck, Monster Truck, Steamroller, Rocket Car, Freight Train, Orbital Cannon
-  - **🤪 Wacky** (always open): Giant Boot, Boxing Glove, Giant Fan, Tornado, Giant Magnet, Falling Whale
+  - **🤪 Wacky** (always open): Pin, Spike Trap, Giant Boot, Boxing Glove, Giant Fan, Tornado, Giant Magnet, Falling Whale
 - **Original weapons**: Hand (grab and fling), Punch, Knife, Bowling ball, Pistol, Bomb, Flamethrower, Anvil, Zeus lightning
 - **Boodie** ($1500): a blonde brawler who spawns in and beats up Arham with jabs, kicks, slaps, headbutts and stomps. Any harm to her KOs her instantly, and a KO'd Boodie fades away after a few seconds (🧹 also removes her); her icon stays red until she is KO'd, and spawning a new one replaces the old one.
 - **Bucks 💰**: earn money by hurting the buddy and spend it in the shop

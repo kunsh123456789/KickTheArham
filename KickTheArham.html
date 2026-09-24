@@ -352,7 +352,13 @@ let hitStop = 0, camKick = 0, camFX = 0, camFY = 0, dmgAcc = 0, dmgCrit = false,
 let shake = 0, flash = 0, flashColor = '#fff', time = 0, hurtFx = 0, whiteT = 0;
 let props = [], parts = [], floorStains = [], wallMarks = [], bolts = [], fists = [];
 let arham = null, boodie = null;
-let ents = [], gravDir = 1, flipT = 0, laserBeam = null, smgCd = 0;
+let ents = [], laserBeam = null, smgCd = 0, spikes = [];
+// gravity as one of four walls
+const GRAV_DIRS = [[0, 1, 'DOWN', '⬇'], [1, 0, 'RIGHT', '➡'], [0, -1, 'UP', '⬆'], [-1, 0, 'LEFT', '⬅']];
+let gravIdx = 0, gravFxT = 0;
+const gvx = () => GRAV_DIRS[gravIdx][0] * U * .0095;
+const gvy = () => GRAV_DIRS[gravIdx][1] * U * .0095;
+const gravDown = () => gravIdx === 0;
 let phasesUnlocked = store.get('phases', 1), shopPhase = 1, shopHasNew = false;
 const bodies = () => boodie ? [arham, boodie] : [arham];
 const boodieActive = () => !!boodie && !boodie.ko;
@@ -386,7 +392,7 @@ const TOOLS = [
   { id: 'tank', phase: 3, name: 'Tank', icon: '🪖', price: 800, desc: 'Rolls in and shells him 5 times.' },
   // Phase 4 — Cosmic
   { id: 'laser', phase: 4, name: 'Laser', icon: '🔦', price: 450, desc: 'Hold to fire a burning beam.', hold: true },
-  { id: 'gravflip', phase: 4, name: 'Gravity Flip', icon: '🙃', price: 550, desc: 'Flips gravity for 5 seconds.' },
+  { id: 'gravflip', phase: 4, name: 'Gravity Control', icon: '🌀', price: 550, desc: 'Tap to rotate gravity to the next wall (down → right → up → left).' },
   { id: 'blackhole', phase: 4, name: 'Black Hole', icon: '🕳️', price: 700, desc: 'Sucks in everything nearby.' },
   { id: 'meteor', phase: 4, name: 'Meteor', icon: '🌑', price: 850, desc: 'Call down a flaming space rock.' },
   { id: 'ufo', phase: 4, name: 'UFO', icon: '🛸', price: 1000, desc: 'Aliens abduct him for a bit.' },
@@ -407,6 +413,7 @@ const TOOLS = [
   { id: 'train', phase: 6, name: 'Freight Train', icon: '🚂', price: 2500, desc: 'Choo choo! Very long, very fast.' },
   { id: 'orbital', phase: 6, name: 'Orbital Cannon', icon: '🛰️', price: 6000, desc: 'Locks on from space. Vaporizes.' },
   { id: 'pin', phase: 7, name: 'Pin', icon: '📌', price: 0, desc: 'Tap a body part to nail it in place. Tap again to free it.' },
+  { id: 'spikes', phase: 7, name: 'Spike Trap', icon: '🔺', price: 300, desc: 'Place spikes anywhere. Slam him onto them.' },
   { id: 'boot', phase: 7, name: 'Giant Boot', icon: '🥾', price: 400, desc: 'A colossal boot stomps him flat.' },
   { id: 'glove', phase: 7, name: 'Boxing Glove', icon: '🥊', price: 550, desc: 'Spring-loaded glove yeets him across the room.' },
   { id: 'fan', phase: 7, name: 'Giant Fan', icon: '💨', price: 650, desc: 'Blows him into the far wall.' },
@@ -1110,7 +1117,7 @@ function landBlow(B, h, E, a) {
 }
 
 // ---------- shop weapons (phases 2-5) ----------
-function grav() { return U * .0095 * gravDir; }
+function grav() { return gvy(); }
 function ignite(B, t = 3) { B.onFire = Math.max(B.onFire, t); if (B.kind === 'boodie') hurt(B, 1, 'fire'); }
 function edgeX(x) { return x < W / 2 ? -20 : W + 20; }
 // Generic projectile: moves each step, calls onHit(x, y, hit) on a body, the floor, or when its fuse runs out.
@@ -1375,12 +1382,13 @@ function doLaser(dt) {
     if (Math.random() < .25) blood(ex, ey, 1, .6);
   }
 }
-function flipGravity() {
-  gravDir = -1; flipT = 5;
-  knock(arham, 0); if (boodieActive()) hurt(boodie, 1);
-  for (const q of props) addVel(q, 0, -2);
-  sfx('ufo'); flash = .4; flashColor = '#c77dff';
-  popText(W / 2, FLOOR * .4, 'GRAVITY FLIP!', '#c77dff', 46);
+function cycleGravity() {
+  gravIdx = (gravIdx + 1) % 4; gravFxT = 1;
+  const d = GRAV_DIRS[gravIdx];
+  for (const B of bodies()) { knock(B, 0); for (const p of B.P) addVel(p, -d[0] * U * .12, -d[1] * U * .12); }
+  for (const q of props) addVel(q, -d[0] * U * .1, -d[1] * U * .1);
+  sfx('ufo'); flash = .35; flashColor = '#c77dff';
+  popText(W / 2, H * .35, `GRAVITY ${d[2]} ${d[3]}`, '#c77dff', 46);
 }
 function spawnBlackHole(x, y) {
   const e = { x, y: Math.min(y, FLOOR - U), t: 0, dur: 4 };
@@ -1584,12 +1592,13 @@ const ACTIONS = {
   molotov: throwMolotov, firework: x => launchFirework(x), fireball: castFireball, lava: x => lavaRain(x), napalm: x => napalmStrike(x),
   grenade: (x, y) => { const g = addProp('grenade', x, Math.min(y, FLOOR - U)); addVel(g, rand(-2, 2), -4); sfx('pop'); },
   mine: x => placeMine(x), rpg: fireRPG, airstrike: x => callAirstrike(x), tank: () => sendTank(),
-  gravflip: () => flipGravity(), blackhole: spawnBlackHole, meteor: dropMeteor, ufo: () => summonUFO(),
+  gravflip: () => cycleGravity(), blackhole: spawnBlackHole, meteor: dropMeteor, ufo: () => summonUFO(),
   chicken: (x, y) => doPunch(x, y, { e: '🐔', mult: 1.7, dmg: 8, snd: 'squeak', words: ['BONK!', 'SQUAWK!', 'BAWK!'] }),
   pie: throwPie, bees: releaseBees, nuke: x => launchNuke(x),
   bike: () => driveVehicle('bike'), car: () => driveVehicle('car'), icecream: () => driveVehicle('icecream'), truck: () => driveVehicle('truck'),
   monster: () => driveVehicle('monster'), roller: () => driveVehicle('roller'), rocket: () => driveVehicle('rocket'), train: () => driveVehicle('train'),
   orbital: x => orbitalStrike(x),
+  spikes: (x, y) => placeSpikes(x, y),
   boot: x => giantBoot(x), glove: () => boxingGlove(), fan: () => bigFan(), tornado: () => tornado(), magnet: x => magnet(x), whale: x => whaleDrop(x),
   pin: (x, y) => {
     const h = hitAny(x, y, .25);
@@ -2479,21 +2488,21 @@ function stepBody(B, dt, G) {
   } else {
     const wasDown = B.stand < .5;
     if (!canStand(B)) B.stand = 0;
-    else if (!(grab && grab.B === B) && gravDir > 0 && B.sinceHurt > 1.3 && B.pain < 70 && B.onFire <= 0 && B.zapped <= 0) B.stand = Math.min(1, B.stand + dt * .6);
+    else if (!(grab && grab.B === B) && gravDown() && B.sinceHurt > 1.3 && B.pain < 70 && B.onFire <= 0 && B.zapped <= 0) B.stand = Math.min(1, B.stand + dt * .6);
     if (wasDown && B.stand >= .5 && Math.random() < .5) say(B, 'up');
-    if (B.stand > .01) {
+    if (gravDown() && B.stand > .01) {
       const cx = clamp((P[4].x + P[5].x) / 2, u * 1.2, W - u * 1.2), sway = Math.sin(time * 1.3) * u * .06;
       B.targets = POSE.map((q, i) => [cx + q[0] * u + (i <= 1 ? sway : 0), FLOOR + q[1] * u, i >= 12 ? .2 : i <= 5 ? .15 : i >= 10 ? .12 : .02]);
     }
   }
 
   // integrate (muscles counter gravity while standing)
-  const g = G * (1 - .9 * B.stand * B.stand);
+  const ease = 1 - .9 * B.stand * B.stand, ggx = gvx() * ease, ggy = gvy() * ease;
   for (const p of P) {
     let vx = (p.x - p.px) * .995, vy = (p.y - p.py) * .995;
     const v = Math.hypot(vx, vy); if (v > MAXV) { vx *= MAXV / v; vy *= MAXV / v; }
     p.px = p.x; p.py = p.y;
-    p.x += vx; p.y += vy + g;
+    p.x += vx + ggx; p.y += vy + ggy;
     p.hitCd -= dt;
   }
   // balance "puppet strings"
@@ -2549,7 +2558,8 @@ function step(dt) {
     if (v >= 8) parts.push({ type: 'burst', x: dmgX, y: dmgY, vx: 0, vy: 0, life: .22, max: .22, size: U * clamp(v / 12, .6, 2.5), color: c });
     dmgAcc = 0; dmgCrit = false; dmgT = performance.now();
   }
-  if (flipT > 0) { flipT -= dt; knock(arham, 0); if (flipT <= 0) { gravDir = 1; popText(W / 2, FLOOR * .4, 'Gravity restored', '#c77dff', 30); } }
+  gravFxT = Math.max(0, gravFxT - dt);
+  stepSpikes(dt);
   if (laserBeam) laserBeam = null;
   idleTimer += dt;
   if (idleTimer > 7) { idleTimer = 0; if (!boodieActive()) say(arham, 'idle', true); }
@@ -2572,7 +2582,7 @@ function step(dt) {
   for (const q of props) {
     let vx = (q.x - q.px), vy = (q.y - q.py);
     const v = Math.hypot(vx, vy), mv = U * .9; if (v > mv) { vx *= mv / v; vy *= mv / v; }
-    q.px = q.x; q.py = q.y; q.x += vx * .998; q.y += vy * .998 + G;
+    q.px = q.x; q.py = q.y; q.x += vx * .998 + gvx(); q.y += vy * .998 + gvy();
     q.hitCd -= dt;
     if (grab && grab.ref === q) { q.x += (pointer.x - q.x) * .3; q.y += (pointer.y - q.y) * .3; }
     if (q.y + q.r > FLOOR) {
@@ -2640,7 +2650,7 @@ function step(dt) {
     const q = parts[i];
     q.life -= dt;
     q.x += q.vx; q.y += q.vy;
-    if (q.type === 'drop' || q.type === 'spark' || q.type === 'shell' || q.type === 'tooth' || q.type === 'gib') q.vy += G * 1.1;
+    if (q.type === 'drop' || q.type === 'spark' || q.type === 'shell' || q.type === 'tooth' || q.type === 'gib') { q.vx += gvx() * 1.1; q.vy += gvy() * 1.1; }
     if (q.type === 'gib') updateGib(q);
     if (q.type === 'flame') { q.vy -= .05; q.size *= .985; }
     if (q.type === 'smoke') { q.size *= 1.01; q.vx *= .98; }
@@ -2734,6 +2744,7 @@ function draw() {
     ctx.fillStyle = 'rgba(0,0,0,.25)';
     ctx.beginPath(); ctx.ellipse(bcx, FLOOR + 4, B.u * 1.1, B.u * .15, 0, 0, 7); ctx.fill();
   }
+  drawSpikes();
   for (const B of bodies()) for (let i = 0; i < 14; i++) if (B.pinned[i]) drawPin(B.P[i]);
   for (const B of bodies()) {
     ctx.globalAlpha = B.ko ? clamp(BOODIE_FADE + 1 - B.koT, 0, 1) : 1;
@@ -2807,9 +2818,11 @@ function draw() {
   ctx.restore();
 
   drawComboHud();
-  if (flipT > 0) {
-    ctx.font = '900 22px "Trebuchet MS", sans-serif'; ctx.textAlign = 'center'; ctx.lineWidth = 5; ctx.strokeStyle = '#000'; ctx.fillStyle = '#e0aaff';
-    const t = `🙃 GRAVITY FLIPPED ${flipT.toFixed(1)}s`; ctx.strokeText(t, W / 2, 110); ctx.fillText(t, W / 2, 110);
+  if (!gravDown() || gravFxT > 0) {
+    const d = GRAV_DIRS[gravIdx];
+    ctx.globalAlpha = gravDown() ? clamp(gravFxT, 0, 1) : 1;
+    ctx.font = '900 20px "Trebuchet MS", sans-serif'; ctx.textAlign = 'center'; ctx.lineWidth = 5; ctx.strokeStyle = '#000'; ctx.fillStyle = '#e0aaff';
+    const t = `GRAVITY ${d[3]} ${d[2]}`; ctx.strokeText(t, W / 2, 112); ctx.fillText(t, W / 2, 112); ctx.globalAlpha = 1;
   }
   if (tool === 'fire' && pointer.down) {
     ctx.font = '36px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -2824,6 +2837,45 @@ function draw() {
   if (flash > 0) { ctx.globalAlpha = Math.min(flash, .85); ctx.fillStyle = flashColor; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
 }
 
+// ---------- spike traps ----------
+// placed anywhere; a cluster of steel spikes. Bodies driven onto them are impaled.
+function placeSpikes(x, y) {
+  y = Math.min(y, FLOOR - 2);
+  spikes.push({ x, y, hit: new Map(), t: 0 });
+  if (spikes.length > 30) spikes.shift();
+  sfx('pin'); ring(x, y, U * .5, '#c8ccd2');
+}
+function stepSpikes(dt) {
+  for (const s of spikes) {
+    s.t += dt;
+    for (const B of bodies()) B.P.forEach((pt, i) => {
+      if (Math.abs(pt.x - s.x) > U * .8 || Math.abs(pt.y - s.y) > U * .5) return;
+      const key = B.kind + i, last = s.hit.get(key) || -9, speed = Math.hypot(pt.x - pt.px, pt.y - pt.py);
+      // push the point up out of the spikes, so he sits impaled on top
+      if (pt.y > s.y - U * .35) { pt.y = s.y - U * .35; pt.py = pt.y; }
+      if (s.t - last < .35) return;
+      s.hit.set(key, s.t);
+      const dmg = 6 + speed / U * 20;
+      hurt(B, dmg); woundPoint(B, i, dmg * 1.8); knock(B, 0);
+      blood(pt.x, pt.y, speed > U * .3 ? 14 : 5, 1 + speed / U);
+      if (speed > U * .35) { gibs(pt.x, pt.y, 2, 1); sfx('squelch'); popText(pt.x, pt.y - 14, 'SHINK!', '#c8ccd2', 30); }
+      else sfx('splat');
+    });
+  }
+}
+function drawSpikes() {
+  for (const s of spikes) {
+    const u = U, n = 5, w = u * 1.3, x0 = s.x - w / 2;
+    ctx.fillStyle = '#3a3f47'; ctx.strokeStyle = '#111'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.roundRect(x0, s.y, w, u * .22, 4); ctx.fill(); ctx.stroke(); // base plate
+    for (let k = 0; k < n; k++) {
+      const cx = x0 + w * (k + .5) / n, h = u * (.5 + (k % 2) * .12);
+      const g = ctx.createLinearGradient(cx, s.y - h, cx, s.y);
+      g.addColorStop(0, '#eef2f6'); g.addColorStop(.5, '#aab2bd'); g.addColorStop(1, '#5b626c');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(cx - u * .1, s.y + 2); ctx.lineTo(cx, s.y - h); ctx.lineTo(cx + u * .1, s.y + 2); ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
+  }
+}
 function drawPin(p) {
   ctx.save(); ctx.translate(p.x, p.y);
   ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(2, 2, 9, 9, 0, 0, 7); ctx.fill();
@@ -3410,10 +3462,10 @@ $('shopScrim').onclick = () => openShop(false);
 $('keeperName').textContent = `${SHOPKEEPER.name}, ${SHOPKEEPER.title}`;
 $('btnNoFace').onclick = () => { store.set('face', null); loadFace(null); };
 $('btnMute').onclick = () => { muted = !muted; store.set('muted', muted); $('btnMute').textContent = muted ? '🔇' : '🔊'; initAudio(); };
-$('btnClear').onclick = () => { props = []; ents = []; nurseOnDuty = false; gravDir = 1; flipT = 0; boodie = null; refreshTools(); for (const B of bodies()) { B.decals = []; B.bleed = 0; B.swell = 0; B.pinned = new Array(14).fill(null); } floorStains = []; wallMarks = []; parts = []; grab = null; };
+$('btnClear').onclick = () => { props = []; ents = []; spikes = []; nurseOnDuty = false; gravIdx = 0; boodie = null; refreshTools(); for (const B of bodies()) { B.decals = []; B.bleed = 0; B.swell = 0; B.pinned = new Array(14).fill(null); } floorStains = []; wallMarks = []; parts = []; grab = null; };
 $('btnReset').onclick = () => {
   arham = makeBody('arham', W / 2); boodie = null; nurseOnDuty = false;
-  props = []; ents = []; gravDir = 1; flipT = 0; parts = []; floorStains = []; wallMarks = []; grab = null;
+  props = []; ents = []; spikes = []; gravIdx = 0; parts = []; floorStains = []; wallMarks = []; grab = null;
   say(arham, 'up', true);
   refreshTools();
 };
