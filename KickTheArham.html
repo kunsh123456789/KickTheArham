@@ -3876,10 +3876,11 @@ $('gateField').focus();
 
 let last = performance.now(), acc = 0;
 function loop(now) {
-  acc += Math.min(.1, (now - last) / 1000); last = now;
+  const real = Math.min(.1, (now - last) / 1000);
+  acc += real; last = now;
   const DT = 1 / 60;
-  if (!gateOpen) { last = now; acc = 0; requestAnimationFrame(loop); return; }
-  if (ASC.active) { ASC.frame(Math.min(.05, (now - last) / 1000)); last = now; requestAnimationFrame(loop); return; }
+  if (!gateOpen) { acc = 0; requestAnimationFrame(loop); return; }
+  if (ASC.active) { ASC.frame(Math.max(1 / 60, Math.min(.05, real))); requestAnimationFrame(loop); return; }
   if (hitStop > 0) { hitStop -= Math.min(acc, .1); acc = 0; } // freeze frame on big hits
   while (acc >= DT) { step(DT); acc -= DT; }
   draw();
