@@ -41,7 +41,7 @@ let earnFrac = 0, idleTimer = 0;
 // It drains if you stop hurting him, and dropping below empty loses a tier.
 const EARN_RATE = .3, METER_RATE = .35;
 const MAX_PHASE = 5; // meter-unlocked shop phases (Vehicles is always open)
-const TIERS = [1, 2, 3, 4, 5, 10, 15, 20, 30, 50, 75, 100];
+const TIERS = [1, 2, 3, 4, 5, 10, 15, 20, 30, 50, 75, 100, 150, 250, 500, 1000];
 let painMeter = store.get('meter', 0), tier = clamp(store.get('tier', 0), 0, TIERS.length - 1), meterIdle = 0, meterSaveT = 0;
 const meterMult = () => TIERS[tier];
 // Combos: every hit within COMBO_WINDOW seconds of the last one adds to the combo.
@@ -409,6 +409,7 @@ function limitBreak() {
   const bar = $('meter'); bar.classList.remove('break'); void bar.offsetWidth; bar.classList.add('break');
   meterShards();
   toast(`💥 Pain meter LIMIT BREAK! Bucks now ${m}X`, 2200);
+  if (m >= 1000 && !ASC.ascended) { setTimeout(() => ASC.begin(), 400); return; }
   if (phasesUnlocked < MAX_PHASE) {
     phasesUnlocked++; store.set('phases', phasesUnlocked); shopHasNew = true;
     const n = phasesUnlocked;
@@ -2117,8 +2118,320 @@ function bigFan() {
   ents.push(e);
 }
 
+// ================= ASCENSION / LIMINAL MODE =================
+// Reaching a 1000X pain-meter multiplier tears the toy open. The cartoon ends
+// and a first-person liminal-space wander begins. Point of no return (only New
+// Game clears it). All "ARG" strings below are fiction — no real links/places.
+const ASC = (() => {
+  let active = false, stage = 'none', t = 0;
+  let drone = null, droneG = null, whisperT = 6, glitchT = 0;
+  const keys = {};
+  // camera
+  const cam = { x: 2.5, y: 2.5, a: 0, bob: 0 };
+  let MAP = [], MS = 40, level = 0, notesFound = 0, noteView = null, noteViewT = 0;
+  let motes = [], msgs = [], msgIdx = 0, msgT = 3;
+
+  // --- fictional breadcrumb text ---
+  const LOGS = [
+    'LOG 001 — "the numbers went up. they kept going up. i don\'t think they were ever money."',
+    'LOG 007 — "{n} stopped screaming around the 400th multiplier. it started counting instead."',
+    'LOG 013 — "if you are reading this you also went too far. keep left. keep left. keep—"',
+    'LOG 019 — "the nurse doesn\'t work down here. i checked. i checked i checked i checked"',
+    'LOG 023 — "SUBLEVEL ∅. exit is a rumor. bring the pain meter. it is the only light."',
+    'LOG 031 — "he built the shop. gus was never selling to you."',
+    'MEMO — do not exceed 999X. the wallpaper is load-bearing.',
+  ];
+  const WHISPERS = [
+    'you did this to {n}.',
+    'go deeper.',
+    'the multiplier is still counting.',
+    'do you remember closing the tab?',
+    'there is no floor here. there never was.',
+    'keep left.',
+    '{n} says hello. {n} has too many teeth now.',
+    'you can stop looking. it will not stop looking back.',
+  ];
+  const GLYPHS = 'AR H4M ∅ ▚ ▞ ⌇ ⟠ ☖ ▓ 1000X N0 3XIT S U B L V L'.split(' ');
+
+  function rng(s) { return () => (s = (s * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff; }
+  function genMap(seed) {
+    const r = rng(seed || 1), m = [];
+    for (let y = 0; y < MS; y++) { m[y] = []; for (let x = 0; x < MS; x++) {
+      let wall = x === 0 || y === 0 || x === MS - 1 || y === MS - 1;
+      if (!wall && x % 4 === 0 && y % 4 === 0) wall = r() > .12;         // pillar lattice
+      if (!wall && (x % 8 === 3) && y % 4 !== 2) wall = r() > .35;        // stub walls -> rooms
+      m[y][x] = wall ? 1 : 0;
+    } }
+    m[2][2] = 0; m[2][3] = 0; m[3][2] = 0;
+    return m;
+  }
+  function scatter(seed) {
+    const r = rng(seed * 7 + 3); motes = [];
+    const nLogs = 4 + level;
+    for (let i = 0; i < nLogs; i++) {
+      let x, y, tries = 0;
+      do { x = 2 + (r() * (MS - 4) | 0) + .5; y = 2 + (r() * (MS - 4) | 0) + .5; tries++; } while (MAP[y | 0][x | 0] && tries < 50);
+      motes.push({ x, y, text: LOGS[(i + level) % LOGS.length], found: false, kind: r() > .7 ? 'exit' : 'log' });
+    }
+  }
+
+  // ---------- audio ----------
+  function startDrone() {
+    if (!AC || drone) return;
+    droneG = AC.createGain(); droneG.gain.value = 0; droneG.connect(master);
+    drone = [];
+    for (const f of [55, 55.6, 82.4, 41.2]) {
+      const o = AC.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f;
+      const g = AC.createGain(); g.gain.value = .12;
+      const lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 320;
+      o.connect(g).connect(lp).connect(droneG); o.start(); drone.push(o);
+    }
+    // breathing filtered static
+    const s = AC.createBufferSource(); s.buffer = NB; s.loop = true;
+    const bp = AC.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 600; bp.Q.value = .6;
+    const sg = AC.createGain(); sg.gain.value = .05; s.connect(bp).connect(sg).connect(droneG); s.start();
+    droneG.gain.linearRampToValueAtTime(.9, AC.currentTime + 4);
+  }
+  function stopDrone() { if (droneG) { try { droneG.gain.linearRampToValueAtTime(0, AC.currentTime + .3); } catch (e) {} } drone = null; }
+  function whisper() {
+    if (!AC || muted) return;
+    const o = AC.createOscillator(), g = AC.createGain(), bp = AC.createBiquadFilter();
+    o.type = 'sawtooth'; o.frequency.value = rand(90, 160); bp.type = 'bandpass'; bp.frequency.value = rand(700, 1600); bp.Q.value = 3;
+    g.gain.setValueAtTime(0, AC.currentTime); g.gain.linearRampToValueAtTime(.06, AC.currentTime + .2); g.gain.linearRampToValueAtTime(0, AC.currentTime + rand(.8, 1.4));
+    o.connect(bp).connect(g).connect(master); o.start(); o.stop(AC.currentTime + 1.6);
+  }
+  function stinger() { if (!AC || muted) return; noise(.4, .9, 2600, 'highpass'); tone(70, 30, .8, 'sawtooth', .5); }
+
+  // ---------- start ----------
+  function begin() {
+    if (active) return;
+    active = true; stage = 'cine'; t = 0; store.set('ascended', true);
+    initAudio(); startDrone();
+    document.body.classList.add('asc');
+    parts.length = 0; props.length = 0; ents.length = 0; shake = 0; flash = 0; boodie = null;
+    if (arham) { arham.pinned = new Array(14).fill(null); for (const p of arham.P) p.m = 1; }
+  }
+  function enterLiminal() {
+    active = true; document.body.classList.add('asc'); initAudio(); startDrone();
+    level = 0; notesFound = 0; MAP = genMap(1337); scatter(1); cam.x = 2.5; cam.y = 2.5; cam.a = 0;
+    stage = 'liminal'; t = 0; msgIdx = 0; msgT = 3;
+  }
+  function descend() {
+    level++; MAP = genMap(1337 + level * 101); scatter(level + 1);
+    cam.x = 2.5; cam.y = 2.5; cam.a = rand(0, 6.28);
+    stinger(); glitchT = 1.2;
+    banner(`SUBLEVEL ${level === 0 ? '∅' : '-' + level}`);
+  }
+  function banner(txt) { msgs.unshift({ t: 4, big: true, text: txt }); }
+
+  // ---------- update ----------
+  function frame(dtReal) {
+    t += dtReal; glitchT = Math.max(0, glitchT - dtReal);
+    if (stage === 'cine') return cine(dtReal);
+    if (stage === 'warp') { if (t > 2.2) enterLiminal(); return drawWarp(); }
+    liminalStep(dtReal); liminalDraw();
+  }
+
+  // Stage 1: the cartoon world tears open
+  function cine(dt) {
+    // float + fracture the buddy
+    if (arham) for (const p of arham.P) {
+      addVel(p, rand(-1, 1) * U * .06, -U * .02 - t * U * .004);
+      p.x += Math.sin(t * 8 + p.y) * U * .01;
+    }
+    if (Math.random() < .5 && arham) { const p = arham.P[(Math.random() * 14) | 0]; gibs(p.x, p.y, 1, 1.2, ['flesh', 'bone']); }
+    if (Math.random() < .3) { flash = .3; flashColor = Math.random() > .5 ? '#00ffe0' : '#ff004d'; }
+    draw();               // normal scene underneath
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    // desaturate + glitch slices
+    ctx.fillStyle = `rgba(10,10,14,${clamp(t / 7, 0, .82)})`; ctx.fillRect(0, 0, W, H);
+    glitchSlices(Math.min(1, t / 3));
+    scanlines();
+    // text
+    ctx.textAlign = 'center'; ctx.fillStyle = '#e9e9ef'; ctx.font = `900 ${Math.min(46, W / 16)}px "Trebuchet MS", monospace`;
+    if (t > .6) drift(`${buddyName.toUpperCase()} has ascended…`, W / 2, H * .34, t);
+    ctx.font = `${Math.min(15, W / 46)}px monospace`; ctx.fillStyle = '#8affe0';
+    if (t > 2.2) ctx.fillText('signal @ ∅∅.∅∅∅ , -∅∅.∅∅∅   //   ' + rndGlyphs(6), W / 2, H * .5);
+    if (t > 3.2) ctx.fillText('11 / ██ / 1998   —   the multiplier did not stop', W / 2, H * .55);
+    if (t > 4.2) { ctx.fillStyle = '#ff5d73'; ctx.fillText('there is no 1001.', W / 2, H * .6); }
+    if (t > 5) { ctx.fillStyle = '#9aa'; ctx.font = `${Math.min(13, W / 54)}px monospace`; ctx.fillText('do not look for the exit. keep left.', W / 2, H * .66); }
+    if (t >= 7) { stage = 'warp'; t = 0; stinger(); }
+  }
+  function drawWarp() {
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+    // rushing static tunnel
+    for (let i = 0; i < 120; i++) {
+      const a = Math.random() * 6.28, r = Math.random() * Math.max(W, H) * (.2 + t * .4);
+      ctx.fillStyle = `rgba(${180 + Math.random() * 60 | 0},${200 + Math.random() * 55 | 0},${200},${Math.random() * .5})`;
+      ctx.fillRect(W / 2 + Math.cos(a) * r, H / 2 + Math.sin(a) * r, 2, 2);
+    }
+    ctx.globalAlpha = clamp(1 - t, 0, 1); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1;
+    if (t > 1.4) { ctx.fillStyle = `rgba(0,0,0,${clamp((t - 1.4) / .8, 0, 1)})`; ctx.fillRect(0, 0, W, H); }
+  }
+
+  // Stage 3+: liminal wander
+  function liminalStep(dt) {
+    const sp = 2.2 * dt, rot = 1.8 * dt;
+    let mv = 0, turn = 0;
+    if (keys.w || keys.ArrowUp || ptrMove) mv += 1;
+    if (keys.s || keys.ArrowDown) mv -= 1;
+    if (keys.a || keys.ArrowLeft) turn -= 1;
+    if (keys.d || keys.ArrowRight) turn += 1;
+    turn += ptrTurn; ptrTurn *= .0;
+    cam.a += turn * rot;
+    if (mv) {
+      const nx = cam.x + Math.cos(cam.a) * sp * mv, ny = cam.y + Math.sin(cam.a) * sp * mv;
+      if (!solid(nx, cam.y)) cam.x = nx;
+      if (!solid(cam.x, ny)) cam.y = ny;
+      cam.bob += dt * 8;
+    }
+    // wrap for endlessness
+    if (cam.x < 1.5) cam.x += MS - 3; if (cam.x > MS - 1.5) cam.x -= MS - 3;
+    if (cam.y < 1.5) cam.y += MS - 3; if (cam.y > MS - 1.5) cam.y -= MS - 3;
+    // motes
+    for (const m of motes) {
+      if (m.found) continue;
+      if (Math.hypot(m.x - cam.x, m.y - cam.y) < .8) {
+        m.found = true;
+        if (m.kind === 'exit') { banner('you found a way down.'); setTimeout(descend, 900); }
+        else { notesFound++; noteView = m.text.replace(/\{n\}/g, buddyName); noteViewT = 7; whisper(); }
+      }
+    }
+    if (noteViewT > 0) noteViewT -= dt;
+    // whispers & fourth-wall
+    whisperT -= dt;
+    if (whisperT <= 0) { whisperT = rand(7, 16); whisper(); msgs.unshift({ t: 5, text: pick(WHISPERS).replace(/\{n\}/g, buddyName) }); }
+    for (const m of msgs) m.t -= dt; msgs = msgs.filter(m => m.t > 0).slice(0, 4);
+    if (Math.random() < dt * .25) glitchT = rand(.15, .5);
+  }
+  function solid(x, y) { const c = MAP[y | 0]; return !c || c[x | 0]; }
+
+  function liminalDraw() {
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    const flick = .92 + Math.sin(t * 13) * .05 + (Math.random() < .04 ? -rand(.1, .35) : 0);
+    // ceiling & floor
+    const bob = Math.sin(cam.bob) * H * .01;
+    ctx.fillStyle = shade('#4a4740', flick); ctx.fillRect(0, 0, W, H / 2 + bob);
+    ctx.fillStyle = shade('#2f2b25', flick); ctx.fillRect(0, H / 2 + bob, W, H / 2 - bob);
+    const FOV = 1.05, cols = Math.ceil(W / 4);
+    for (let s = 0; s < cols; s++) {
+      const sx = s * 4, camX = 2 * (sx / W) - 1, ang = cam.a + Math.atan(camX * Math.tan(FOV / 2));
+      const [dist, side, tex] = ray(cam.x, cam.y, ang);
+      const corrected = dist * Math.cos(ang - cam.a);
+      const h = Math.min(H * 2, (H * .9) / (corrected + .0001));
+      const y0 = H / 2 + bob - h / 2;
+      let br = clamp(1 - corrected / 16, .12, 1) * flick * (side ? .72 : 1);
+      const base = tex ? '#8a8258' : '#877f57';
+      ctx.fillStyle = shade(base, br);
+      ctx.fillRect(sx, y0, 5, h);
+      // wallpaper seam lines
+      if (br > .3 && (Math.floor(cam.x + Math.cos(ang) * dist) + Math.floor(cam.y + Math.sin(ang) * dist)) % 2 === 0) {
+        ctx.fillStyle = shade('#6f683f', br); ctx.fillRect(sx, y0, 5, Math.max(1, h * .03));
+      }
+    }
+    drawMotes(bob);
+    fog();
+    scanlines();
+    if (glitchT > 0) glitchSlices(clamp(glitchT * 2, 0, 1));
+    hud();
+  }
+  function ray(px, py, a) {
+    const dx = Math.cos(a), dy = Math.sin(a);
+    let mx = px | 0, my = py | 0;
+    const ddx = Math.abs(1 / (dx || 1e-9)), ddy = Math.abs(1 / (dy || 1e-9));
+    let sx = dx < 0 ? -1 : 1, sy = dy < 0 ? -1 : 1;
+    let distX = (dx < 0 ? px - mx : mx + 1 - px) * ddx, distY = (dy < 0 ? py - my : my + 1 - py) * ddy;
+    let side = 0;
+    for (let i = 0; i < 64; i++) {
+      if (distX < distY) { distX += ddx; mx += sx; side = 0; } else { distY += ddy; my += sy; side = 1; }
+      const row = MAP[((my % MS) + MS) % MS]; if (!row) break;
+      if (row[((mx % MS) + MS) % MS]) {
+        const d = side ? distY - ddy : distX - ddx;
+        return [Math.max(.05, d), side, (mx + my) % 3 === 0];
+      }
+    }
+    return [14, 0, false];
+  }
+  function drawMotes(bob) {
+    const list = motes.filter(m => !m.found).map(m => {
+      const rx = m.x - cam.x, ry = m.y - cam.y, d = Math.hypot(rx, ry);
+      const ang = Math.atan2(ry, rx) - cam.a;
+      return { m, d, ang: ((ang + Math.PI * 3) % (Math.PI * 2)) - Math.PI };
+    }).filter(o => o.d < 12 && Math.abs(o.ang) < .8).sort((a, b) => b.d - a.d);
+    for (const o of list) {
+      const sx = W / 2 + Math.tan(o.ang) * (W / 2) / Math.tan(1.05 / 2);
+      const sz = clamp((H * .5) / (o.d + .3), 6, H);
+      const y = H / 2 + bob;
+      const pulse = .5 + .5 * Math.sin(t * 4 + o.d);
+      const col = o.m.kind === 'exit' ? `rgba(120,255,220,` : `rgba(255,220,120,`;
+      const g = ctx.createRadialGradient(sx, y, 0, sx, y, sz);
+      g.addColorStop(0, col + (.5 + pulse * .4) + ')'); g.addColorStop(1, col + '0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(sx, y, sz, 0, 7); ctx.fill();
+      ctx.fillStyle = col + '.9)'; ctx.font = `${Math.max(10, sz * .5)}px monospace`; ctx.textAlign = 'center';
+      ctx.fillText(o.m.kind === 'exit' ? '▼' : '▤', sx, y + sz * .2);
+    }
+  }
+
+  // ---------- overlays ----------
+  function shade(hex, b) { const n = parseInt(hex.slice(1), 16); const r = (n >> 16) * b | 0, g = ((n >> 8) & 255) * b | 0, bl = (n & 255) * b | 0; return `rgb(${r},${g},${bl})`; }
+  function scanlines() { ctx.fillStyle = 'rgba(0,0,0,.16)'; for (let y = 0; y < H; y += 3) ctx.fillRect(0, y, W, 1); }
+  function fog() { const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * .18, W / 2, H / 2, Math.max(W, H) * .7); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.62)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); }
+  function glitchSlices(amt) {
+    const n = 3 + (amt * 8 | 0);
+    for (let i = 0; i < n; i++) {
+      const y = Math.random() * H, h = rand(4, 30), dx = rand(-40, 40) * amt;
+      try { ctx.drawImage(cv, 0, y * DPR, cv.width, h * DPR, dx, y, W, h); } catch (e) {}
+      if (Math.random() < .5) { ctx.fillStyle = `rgba(${Math.random() > .5 ? '255,0,80' : '0,255,220'},.12)`; ctx.fillRect(dx, y, W, h); }
+    }
+  }
+  function drift(txt, x, y, tt) { ctx.save(); ctx.translate(x + Math.sin(tt * 2) * 4, y + Math.cos(tt * 1.5) * 3); ctx.fillStyle = 'rgba(0,255,220,.25)'; ctx.fillText(txt, 3, 0); ctx.fillStyle = 'rgba(255,0,80,.25)'; ctx.fillText(txt, -3, 0); ctx.fillStyle = '#eee'; ctx.fillText(txt, 0, 0); ctx.restore(); }
+  function rndGlyphs(n) { let s = ''; for (let i = 0; i < n; i++) s += pick(GLYPHS); return s; }
+  function hud() {
+    ctx.textAlign = 'left'; ctx.font = '12px monospace';
+    ctx.fillStyle = '#7d8'; ctx.fillText(`FRAGMENTS ${notesFound}/${LOGS.length}   SUBLEVEL ${level === 0 ? '∅' : '-' + level}   MULT 1000X+`, 14, H - 18 - 0);
+    ctx.fillStyle = 'rgba(180,180,190,.5)'; ctx.fillText('drag / WASD to move · look for ▤ · ESC to sever', 14, H - 4);
+    // centered whispers
+    ctx.textAlign = 'center';
+    let yy = H * .18;
+    for (const m of msgs) {
+      ctx.globalAlpha = clamp(m.t / 2, 0, 1);
+      ctx.font = m.big ? `900 ${Math.min(40, W / 18)}px monospace` : `${Math.min(20, W / 34)}px monospace`;
+      ctx.fillStyle = m.big ? '#8affe0' : '#d7d7de';
+      drift(m.text, W / 2, yy, t); yy += m.big ? 46 : 30;
+    }
+    ctx.globalAlpha = 1;
+    if (noteViewT > 0) {
+      ctx.globalAlpha = clamp(noteViewT, 0, 1);
+      const bw = Math.min(W - 40, 560), bh = 120, bx = (W - bw) / 2, by = H * .62;
+      ctx.fillStyle = 'rgba(12,14,12,.9)'; ctx.fillRect(bx, by, bw, bh);
+      ctx.strokeStyle = '#5c7'; ctx.lineWidth = 2; ctx.strokeRect(bx, by, bw, bh);
+      ctx.fillStyle = '#bfe'; ctx.font = '13px monospace'; ctx.textAlign = 'left';
+      wrap(noteView, bx + 14, by + 26, bw - 28, 18);
+      ctx.globalAlpha = 1;
+    }
+  }
+  function wrap(txt, x, y, w, lh) {
+    const words = txt.split(' '); let line = '';
+    for (const wd of words) { if (ctx.measureText(line + wd).width > w) { ctx.fillText(line, x, y); line = ''; y += lh; } line += wd + ' '; }
+    ctx.fillText(line, x, y);
+  }
+
+  // ---------- input ----------
+  let ptrDown = false, ptrMove = false, ptrTurn = 0, lastPX = 0;
+  function pdown(e) { if (!active || stage !== 'liminal') return; ptrDown = true; ptrMove = true; lastPX = e.clientX; }
+  function pmove(e) { if (!ptrDown) return; ptrTurn += (e.clientX - lastPX) * .006; lastPX = e.clientX; }
+  function pup() { ptrDown = false; ptrMove = false; }
+  window.addEventListener('keydown', e => { keys[e.key] = true; if (e.key === 'Escape' && active) $('newGameBox').hidden = false; });
+  window.addEventListener('keyup', e => { keys[e.key] = false; });
+
+  return { get active() { return active; }, get stage() { return stage; }, begin, enterLiminal, frame,
+    pdown, pmove, pup, stopDrone, get ascended() { return store.get('ascended', false); } };
+})();
+
 // ---------- input ----------
 cv.addEventListener('pointerdown', e => {
+  if (ASC.active) { ASC.pdown(e); return; }
   initAudio();
   cv.setPointerCapture(e.pointerId);
   const x = e.clientX, y = e.clientY;
@@ -2140,11 +2453,13 @@ cv.addEventListener('pointerdown', e => {
   }
 });
 cv.addEventListener('pointermove', e => {
+  if (ASC.active) { ASC.pmove(e); return; }
   pointer.lx = pointer.x; pointer.ly = pointer.y;
   pointer.x = e.clientX; pointer.y = e.clientY;
   if (pointer.down && tool === 'knife') doSlice(pointer.lx, pointer.ly, pointer.x, pointer.y);
 });
-function release() {
+function release(e) {
+  if (ASC.active) { ASC.pup(e); return; }
   if (grab && grab.B) grab.B.thrownT = 1.5;
   pointer.down = false; grab = null;
 }
@@ -3167,6 +3482,7 @@ $('btnNoFace').onclick = () => { store.set('face', null); loadFace(null); };
 $('btnNewGame').onclick = () => { $('newGameBox').hidden = false; };
 $('ngCancel').onclick = () => { $('newGameBox').hidden = true; };
 $('ngConfirm').onclick = () => {
+  ASC.stopDrone();
   store.clear();
   try { localStorage.setItem('kta_bucks', '0'); } catch (e) {} // start with no money
   location.reload();
@@ -3222,7 +3538,9 @@ let gateOpen = false;
 $('gateForm').onsubmit = e => {
   e.preventDefault();
   if ($('gateField').value === VAULT_PASSWORD) {
-    gateOpen = true; $('gate').classList.add('open'); initAudio(); sfx('buy');
+    gateOpen = true; $('gate').classList.add('open'); initAudio();
+    if (ASC.ascended) { setTimeout(() => ASC.enterLiminal(), 300); return; }
+    sfx('buy');
     setTimeout(() => { $('gate').hidden = true; }, 500);
     setTimeout(() => toast(`Grab, fling & wreck ${buddyName} to earn 💰 and unlock weapons!`, 3500), 400);
   } else {
@@ -3238,6 +3556,7 @@ function loop(now) {
   acc += Math.min(.1, (now - last) / 1000); last = now;
   const DT = 1 / 60;
   if (!gateOpen) { last = now; acc = 0; requestAnimationFrame(loop); return; }
+  if (ASC.active) { ASC.frame(Math.min(.05, (now - last) / 1000)); last = now; requestAnimationFrame(loop); return; }
   if (hitStop > 0) { hitStop -= Math.min(acc, .1); acc = 0; } // freeze frame on big hits
   while (acc >= DT) { step(DT); acc -= DT; }
   draw();

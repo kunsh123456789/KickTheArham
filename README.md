@@ -36,3 +36,11 @@ to regenerate `KickTheArham.html`.
 - 🔐 **Vault**: enter the developer password for infinite money (can be turned off again)
 - ✏️ Rename the buddy, 📷 use any photo as his face
 - Progress (bucks, unlocks, name, face) is saved in `localStorage`
+
+## The Ascension (secret endgame)
+Push the pain-meter multiplier through every limit break to **1000X** and the toy tears
+itself open. Arham "ascends" in a glitched cinematic, then the game becomes a first-person
+liminal-space wander: an endless desaturated backrooms hallway with drifting drones, static,
+whispers, corrupted fragment logs to find (▤), and fourth-wall messages. It is a point of no
+return — it persists across reloads. Press **Esc** (or use 🆕 New Game) to sever the connection
+and start over. All the ARG-flavoured text is fiction; no real links, places, or dates.
