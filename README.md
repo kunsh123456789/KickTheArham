@@ -32,6 +32,7 @@ to regenerate `KickTheArham.html`.
 - Expressions, speech bubbles, bruises, cuts, bullet holes, scorch marks, screen shake
 - Synthesized sound effects (Web Audio API)
 - 🆕 **New Game**: wipes all progress (bucks, unlocks, phases, name, photo) and restarts fresh with no money, after a confirm
+- ⌨️ **Alt+Shift+R**: restart from anywhere (opens the New Game confirm), even inside the liminal mode
 - 📌 **Pin**: nail any body part in place; pin him mid-air and wail on him. Tap a pin again to release it
 - 🔐 **Vault**: enter the developer password for infinite money (can be turned off again)
 - ✏️ Rename the buddy, 📷 use any photo as his face

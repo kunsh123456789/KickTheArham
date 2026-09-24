@@ -3803,6 +3803,12 @@ $('shopScrim').onclick = () => openShop(false);
 $('keeperName').textContent = `${SHOPKEEPER.name}, ${SHOPKEEPER.title}`;
 $('btnNoFace').onclick = () => { store.set('face', null); loadFace(null); };
 $('btnNewGame').onclick = () => { $('newGameBox').hidden = false; };
+// global restart combo: Alt+Shift+R opens the New Game confirm from anywhere
+window.addEventListener('keydown', e => {
+  if (e.altKey && e.shiftKey && (e.key === 'R' || e.key === 'r' || e.code === 'KeyR')) {
+    e.preventDefault(); initAudio(); $('newGameBox').hidden = false;
+  }
+}, true);
 $('ngCancel').onclick = () => { $('newGameBox').hidden = true; };
 $('ngConfirm').onclick = () => {
   ASC.stopDrone();
