@@ -215,6 +215,19 @@ html, body {
 
 #shop.ph7 { --sb: linear-gradient(135deg, #ff9e00, #ff0a54 55%, #9d4edd); --acc: #fff275; }
 
+#newGameBox {
+  position: fixed; left: 50%; top: 26%; transform: translateX(-50%); z-index: 26;
+  width: min(340px, calc(100vw - 32px)); background: #2b2d42; color: #fff; border: 3px solid #000;
+  border-radius: 16px; box-shadow: 0 6px 0 #000; padding: 16px; font-weight: 800;
+  display: flex; flex-direction: column; gap: 10px;
+}
+#newGameBox[hidden] { display: none; }
+#newGameBox .ngtitle { font-size: 20px; color: #ff5d73; text-shadow: 0 2px 0 #000; }
+#newGameBox p { margin: 0; font-weight: 600; font-size: 14px; line-height: 1.35; }
+#newGameBox .row { display: flex; gap: 8px; justify-content: flex-end; }
+#newGameBox button { font: inherit; padding: 8px 14px; border: 3px solid #000; border-radius: 10px; background: #eee; color: #222; cursor: pointer; font-weight: 800; }
+#newGameBox #ngConfirm { background: #ff5d73; color: #fff; }
+
 </style>
 </head>
 <body>
@@ -241,6 +254,7 @@ html, body {
     <button id="btnMute" title="Sound on/off">🔊</button>
     <button id="btnClear" title="Clear props and marks">🧹</button>
     <button id="btnReset" title="Reset buddy">🔄</button>
+    <button id="btnNewGame" title="New game (wipe all progress)">🆕</button>
   </div>
   <input type="file" id="faceInput" accept="image/*" hidden>
 </div>
@@ -289,6 +303,12 @@ html, body {
   <div class="ptitle"><b id="phaseName"></b><span id="phaseDesc"></span></div>
   <div id="shopGrid"></div>
 </aside>
+<div id="newGameBox" hidden>
+  <div class="ngtitle">🆕 New Game?</div>
+  <p>This wipes <b>everything</b> — bucks, unlocked weapons, shop phases, name and photo. Start completely fresh?</p>
+  <div class="row"><button type="button" id="ngCancel">Cancel</button><button type="button" id="ngConfirm">Wipe &amp; restart</button></div>
+</div>
+
 <form id="nameBox" hidden>
   <label for="nameField">Name your buddy</label>
   <input id="nameField" maxlength="16" autocomplete="off">
@@ -307,7 +327,8 @@ const rand = (a, b) => a + Math.random() * (b - a);
 const pick = arr => arr[(Math.random() * arr.length) | 0];
 const store = {
   get(k, d) { try { const v = localStorage.getItem('kta_' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
-  set(k, v) { try { localStorage.setItem('kta_' + k, JSON.stringify(v)); } catch (e) {} }
+  set(k, v) { try { localStorage.setItem('kta_' + k, JSON.stringify(v)); } catch (e) {} },
+  clear() { try { for (const k of Object.keys(localStorage)) if (k.startsWith('kta_')) localStorage.removeItem(k); } catch (e) {} }
 };
 function hexToRgb(h) { const n = parseInt(h.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; }
 function mix(a, b, t) {
@@ -3461,6 +3482,13 @@ $('nurseName').textContent = NURSE.name;
 $('shopScrim').onclick = () => openShop(false);
 $('keeperName').textContent = `${SHOPKEEPER.name}, ${SHOPKEEPER.title}`;
 $('btnNoFace').onclick = () => { store.set('face', null); loadFace(null); };
+$('btnNewGame').onclick = () => { $('newGameBox').hidden = false; };
+$('ngCancel').onclick = () => { $('newGameBox').hidden = true; };
+$('ngConfirm').onclick = () => {
+  store.clear();
+  try { localStorage.setItem('kta_bucks', '0'); } catch (e) {} // start with no money
+  location.reload();
+};
 $('btnMute').onclick = () => { muted = !muted; store.set('muted', muted); $('btnMute').textContent = muted ? '🔇' : '🔊'; initAudio(); };
 $('btnClear').onclick = () => { props = []; ents = []; spikes = []; nurseOnDuty = false; gravIdx = 0; boodie = null; refreshTools(); for (const B of bodies()) { B.decals = []; B.bleed = 0; B.swell = 0; B.pinned = new Array(14).fill(null); } floorStains = []; wallMarks = []; parts = []; grab = null; };
 $('btnReset').onclick = () => {

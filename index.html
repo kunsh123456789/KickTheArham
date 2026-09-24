@@ -30,6 +30,7 @@
     <button id="btnMute" title="Sound on/off">🔊</button>
     <button id="btnClear" title="Clear props and marks">🧹</button>
     <button id="btnReset" title="Reset buddy">🔄</button>
+    <button id="btnNewGame" title="New game (wipe all progress)">🆕</button>
   </div>
   <input type="file" id="faceInput" accept="image/*" hidden>
 </div>
@@ -78,6 +79,12 @@
   <div class="ptitle"><b id="phaseName"></b><span id="phaseDesc"></span></div>
   <div id="shopGrid"></div>
 </aside>
+<div id="newGameBox" hidden>
+  <div class="ngtitle">🆕 New Game?</div>
+  <p>This wipes <b>everything</b> — bucks, unlocked weapons, shop phases, name and photo. Start completely fresh?</p>
+  <div class="row"><button type="button" id="ngCancel">Cancel</button><button type="button" id="ngConfirm">Wipe &amp; restart</button></div>
+</div>
+
 <form id="nameBox" hidden>
   <label for="nameField">Name your buddy</label>
   <input id="nameField" maxlength="16" autocomplete="off">

@@ -9,7 +9,8 @@ const rand = (a, b) => a + Math.random() * (b - a);
 const pick = arr => arr[(Math.random() * arr.length) | 0];
 const store = {
   get(k, d) { try { const v = localStorage.getItem('kta_' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
-  set(k, v) { try { localStorage.setItem('kta_' + k, JSON.stringify(v)); } catch (e) {} }
+  set(k, v) { try { localStorage.setItem('kta_' + k, JSON.stringify(v)); } catch (e) {} },
+  clear() { try { for (const k of Object.keys(localStorage)) if (k.startsWith('kta_')) localStorage.removeItem(k); } catch (e) {} }
 };
 function hexToRgb(h) { const n = parseInt(h.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; }
 function mix(a, b, t) {
@@ -3163,6 +3164,13 @@ $('nurseName').textContent = NURSE.name;
 $('shopScrim').onclick = () => openShop(false);
 $('keeperName').textContent = `${SHOPKEEPER.name}, ${SHOPKEEPER.title}`;
 $('btnNoFace').onclick = () => { store.set('face', null); loadFace(null); };
+$('btnNewGame').onclick = () => { $('newGameBox').hidden = false; };
+$('ngCancel').onclick = () => { $('newGameBox').hidden = true; };
+$('ngConfirm').onclick = () => {
+  store.clear();
+  try { localStorage.setItem('kta_bucks', '0'); } catch (e) {} // start with no money
+  location.reload();
+};
 $('btnMute').onclick = () => { muted = !muted; store.set('muted', muted); $('btnMute').textContent = muted ? '🔇' : '🔊'; initAudio(); };
 $('btnClear').onclick = () => { props = []; ents = []; spikes = []; nurseOnDuty = false; gravIdx = 0; boodie = null; refreshTools(); for (const B of bodies()) { B.decals = []; B.bleed = 0; B.swell = 0; B.pinned = new Array(14).fill(null); } floorStains = []; wallMarks = []; parts = []; grab = null; };
 $('btnReset').onclick = () => {

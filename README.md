@@ -31,6 +31,7 @@ to regenerate `KickTheArham.html`.
 - **Nurse station 🏥**: Nurse Nancy walks in to bandage him (stops the bleeding) or do full surgery (sets bones and reattaches limbs)
 - Expressions, speech bubbles, bruises, cuts, bullet holes, scorch marks, screen shake
 - Synthesized sound effects (Web Audio API)
+- 🆕 **New Game**: wipes all progress (bucks, unlocks, phases, name, photo) and restarts fresh with no money, after a confirm
 - 📌 **Pin**: nail any body part in place; pin him mid-air and wail on him. Tap a pin again to release it
 - 🔐 **Vault**: enter the developer password for infinite money (can be turned off again)
 - ✏️ Rename the buddy, 📷 use any photo as his face
