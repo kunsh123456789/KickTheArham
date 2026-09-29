@@ -511,6 +511,7 @@ let shake = 0, flash = 0, flashColor = '#fff', time = 0, hurtFx = 0, whiteT = 0;
 let props = [], parts = [], floorStains = [], wallMarks = [], bolts = [], fists = [];
 let arham = null, boodie = null;
 let ents = [], laserBeam = null, smgCd = 0, spikes = [];
+let timeScale = 1, timeFxT = 0, quakeT = 0, arhamScale = 1;   // creative "powers"
 // gravity as one of four walls
 const GRAV_DIRS = [[0, 1, 'DOWN', '⬇'], [1, 0, 'RIGHT', '➡'], [0, -1, 'UP', '⬆'], [-1, 0, 'LEFT', '⬅']];
 let gravIdx = 0, gravFxT = 0;
@@ -589,6 +590,16 @@ const TOOLS = [
   { id: 'env_neon', phase: 8, env: 'neon', name: 'Neon Grid', icon: '🟪', price: 750, desc: 'Electric walls that zap on touch.' },
   { id: 'env_blood', phase: 8, env: 'blood', name: 'Blood Pit', icon: '🩸', price: 800, desc: 'A crimson slaughter room.' },
   { id: 'env_disco', phase: 8, env: 'disco', name: 'Disco', icon: '🪩', price: 900, desc: 'Party lights. Questionable choices.' },
+  // Powers (phase 9) — creative physics benders, not just damage
+  { id: 'p_slow', phase: 9, name: 'Slow-Mo', icon: '⏳', price: 500, desc: 'Bullet-time: everything crawls for 6s.' },
+  { id: 'p_fast', phase: 9, name: 'Fast Forward', icon: '⏩', price: 500, desc: 'Speeds the whole world up for 6s.' },
+  { id: 'p_freeze', phase: 9, name: 'Time Freeze', icon: '⏸️', price: 700, desc: 'Freezes him solid in mid-air for 4s.' },
+  { id: 'p_balloon', phase: 9, name: 'Balloon', icon: '🎈', price: 550, desc: 'He fills with helium and floats up.' },
+  { id: 'p_shrink', phase: 9, name: 'Shrink Ray', icon: '🔬', price: 800, desc: 'Shrinks Arham to tiny size.' },
+  { id: 'p_grow', phase: 9, name: 'Embiggen', icon: '🔎', price: 800, desc: 'Blows Arham up to giant size.' },
+  { id: 'p_normal', phase: 9, name: 'Un-size', icon: '📏', price: 0, desc: 'Return Arham to normal size.' },
+  { id: 'p_dance', phase: 9, name: 'Dance Fever', icon: '🕺', price: 650, desc: 'Forces him to bust a move for 8s.' },
+  { id: 'p_quake', phase: 9, name: 'Earthquake', icon: '🌎', price: 900, desc: 'Shakes the whole room apart for 4s.' },
 ];
 
 // ---------- ragdoll definition (units of u, relative to feet on floor) ----------
@@ -611,10 +622,11 @@ const pointer = { x: 0, y: 0, down: false, lx: 0, ly: 0 };
 let lastHandTap = null;   // for double-click-to-pin with the Hand
 
 function makeBody(kind, cx) {
-  const look = LOOKS[kind], u = U * look.scale;
+  const look = LOOKS[kind], u = U * look.scale * (kind === 'arham' ? arhamScale : 1);
   const B = {
     kind, u, colors: look.colors, decals: [], pain: 0, char: 0, onFire: 0, zapped: 0, stand: 1, sinceHurt: 10,
     bubble: null, voiceCd: 0, blink: 0, ko: false, koT: 0, bleed: 0, swell: 0, thrownT: 0, targets: null,
+    freezeT: 0, freezePos: null, floatT: 0, danceT: 0,
     ai: { x: cx, side: 1, cd: 1, phase: 0, atk: null },
   };
   B.P = POSE.map((q, i) => {
@@ -1814,7 +1826,52 @@ function nukeBlast(x, y) {
 }
 
 // click actions per tool (hand and knife are handled by the pointer code)
+// ---------- creative "powers" (physics benders, not just damage) ----------
+function powerSlow() { timeScale = .3; timeFxT = 6; flash = .2; flashColor = '#bfe9ff'; sfx('ufo'); popText(W / 2, H * .3, 'SLOW-MO', '#bfe9ff', 48); }
+function powerFast() { timeScale = 2.6; timeFxT = 6; sfx('engineHi'); popText(W / 2, H * .3, 'FAST FORWARD', '#ffd84d', 44); }
+function powerFreeze() {
+  const B = arham; B.freezeT = 4; B.freezePos = B.P.map(p => ({ x: p.x, y: p.y }));
+  sfx('zap'); flash = .3; flashColor = '#bfe9ff'; ring(bodyCenter(B)[0], bodyCenter(B)[1], B.u * 2, '#bfe9ff');
+  popText(bodyCenter(B)[0], bodyCenter(B)[1] - B.u, 'FROZEN!', '#bfe9ff', 40); say(B, 'hurt');
+}
+function powerBalloon() { arham.floatT = 7; sfx('pop'); popText(bodyCenter(arham)[0], bodyCenter(arham)[1] - arham.u, 'FLOAT!', '#ff9ec7', 38); say(arham, 'grab', true); }
+function rebuildArham(scale, label, col) {
+  const [cx] = bodyCenter(arham);
+  arhamScale = scale; arham = makeBody('arham', clamp(cx, U, W - U)); arham.stand = .3;
+  sfx('pop'); flash = .2; flashColor = col; popText(cx, FLOOR - U * 2, label, col, 44);
+}
+function powerShrink() { rebuildArham(0.5, 'SHRINK!', '#8affc9'); }
+function powerGrow() { rebuildArham(1.7, 'EMBIGGEN!', '#ffb703'); }
+function powerNormalSize() { rebuildArham(1, 'BACK TO NORMAL', '#fff'); }
+function powerDance() { arham.danceT = 8; sfx('jingle'); setEnv(envId === 'disco' ? envId : envId); popText(bodyCenter(arham)[0], bodyCenter(arham)[1] - arham.u, 'DANCE!', '#ff5d9e', 40); }
+function powerQuake() { quakeT = 4; sfx('tank'); shake = Math.max(shake, 30); popText(W / 2, H * .3, 'EARTHQUAKE!', '#c99', 46); }
+// per-frame power upkeep
+function powersTick(dt) {
+  if (quakeT > 0) {
+    quakeT -= dt; shake = Math.max(shake, 14 + Math.random() * 10);
+    for (const B of bodies()) { for (const p of B.P) addVel(p, rand(-1, 1) * B.u * .06, rand(-1, .2) * B.u * .05); knock(B, 0); }
+    for (const q of props) addVel(q, rand(-1, 1) * U * .05, rand(-1, 0) * U * .04);
+    if (Math.random() < .1) sfx('thud');
+  }
+}
+function bodyPowerTick(B, dt) {
+  if (B.freezeT > 0) B.freezeT -= dt;
+  if (B.floatT > 0) B.floatT -= dt;
+  if (B.danceT > 0) {
+    B.danceT -= dt; B.stand = 1;
+    const t = time * 9, u = B.u, cx = (B.P[4].x + B.P[5].x) / 2;
+    // fling the hands & feet to a beat so he boogies
+    addVel(B.P[8], Math.sin(t) * u * .09, Math.cos(t * 2) * u * .06);
+    addVel(B.P[9], Math.sin(t + 3) * u * .09, Math.cos(t * 2 + 1) * u * .06);
+    addVel(B.P[12], Math.sin(t * 1.3) * u * .05, -Math.max(0, Math.sin(t)) * u * .05);
+    addVel(B.P[13], Math.sin(t * 1.3 + 3) * u * .05, -Math.max(0, Math.sin(t + 3)) * u * .05);
+    addVel(B.P[0], Math.sin(t * .7) * u * .02, 0);
+    if (Math.random() < dt * 3) spawn('spark', B.P[0].x + rand(-u, u), B.P[0].y - u, rand(-2, 2), rand(-3, 0), .5, 3, `hsl(${Math.random() * 360},90%,65%)`);
+  }
+}
 const ACTIONS = {
+  p_slow: () => powerSlow(), p_fast: () => powerFast(), p_freeze: () => powerFreeze(), p_balloon: () => powerBalloon(),
+  p_shrink: () => powerShrink(), p_grow: () => powerGrow(), p_normal: () => powerNormalSize(), p_dance: () => powerDance(), p_quake: () => powerQuake(),
   punch: (x, y) => doPunch(x, y),
   pistol: (x, y) => doShoot(x, y),
   ball: (x, y) => { addProp('ball', x, Math.min(y, FLOOR - U)); sfx('pop'); },
@@ -3328,10 +3385,17 @@ function stepBody(B, dt, G) {
     }
   }
 
-  // integrate (muscles counter gravity while standing)
-  const ease = 1 - .9 * B.stand * B.stand, ggx = gvx() * ease, ggy = gvy() * ease;
+  bodyPowerTick(B, dt);
+  // frozen: hold every joint locked in place
+  if (B.freezeT > 0 && B.freezePos) {
+    for (let i = 0; i < P.length; i++) { P[i].x = B.freezePos[i].x; P[i].y = B.freezePos[i].y; P[i].px = P[i].x; P[i].py = P[i].y; }
+    return;
+  }
+  // integrate (muscles counter gravity while standing; balloon makes him buoyant)
+  const buoy = B.floatT > 0 ? -1.5 : 1;
+  const ease = 1 - .9 * B.stand * B.stand, ggx = gvx() * ease, ggy = gvy() * ease * buoy;
   for (const p of P) {
-    let vx = (p.x - p.px) * .995, vy = (p.y - p.py) * .995;
+    let vx = (p.x - p.px) * .995, vy = (p.y - p.py) * (B.floatT > 0 ? .97 : .995);
     const v = Math.hypot(vx, vy); if (v > MAXV) { vx *= MAXV / v; vy *= MAXV / v; }
     p.px = p.x; p.py = p.y;
     p.x += vx + ggx; p.y += vy + ggy;
@@ -3386,6 +3450,7 @@ function step(dt) {
   updateMeter(dt);
   updateRunners(dt);
   envTick(dt);
+  powersTick(dt);
   camKick *= .85;
   if (dmgAcc >= 1 && performance.now() - dmgT > 70) {
     const v = Math.round(dmgAcc), c = dmgCrit ? '#ff3b3b' : v >= 25 ? '#ff7b00' : v >= 10 ? '#ffd84d' : '#ffffff';
@@ -3844,6 +3909,25 @@ function drawBuddy(B) {
     ctx.fillStyle = '#efe6d2'; ctx.beginPath(); ctx.arc(P[1].x, P[1].y, u * .06, 0, 7); ctx.fill();
   }
   drawHead(B);
+  // balloon while floating
+  if (B.floatT > 0) {
+    const h = B.P[0], bx = h.x + Math.sin(time * 2) * u * .3, by = h.y - u * 2.2 + Math.cos(time * 1.7) * u * .2;
+    ctx.strokeStyle = 'rgba(0,0,0,.4)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(h.x, h.y - RAD[0] * u); ctx.quadraticCurveTo(bx - u * .2, (h.y + by) / 2, bx, by + u * .55); ctx.stroke();
+    ctx.fillStyle = '#ff5d9e'; ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.ellipse(bx, by, u * .5, u * .6, 0, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.4)'; ctx.beginPath(); ctx.ellipse(bx - u * .17, by - u * .2, u * .12, u * .18, -.4, 0, 7); ctx.fill();
+    ctx.fillStyle = '#ff5d9e'; ctx.beginPath(); ctx.moveTo(bx, by + u * .55); ctx.lineTo(bx - u * .08, by + u * .68); ctx.lineTo(bx + u * .08, by + u * .68); ctx.fill();
+  }
+  // frozen block of ice
+  if (B.freezeT > 0) {
+    let minx = 1e9, miny = 1e9, maxx = -1e9, maxy = -1e9;
+    for (const p of B.P) { minx = Math.min(minx, p.x); miny = Math.min(miny, p.y); maxx = Math.max(maxx, p.x); maxy = Math.max(maxy, p.y); }
+    const pad = u * .5;
+    ctx.fillStyle = 'rgba(180,235,255,.32)'; ctx.strokeStyle = 'rgba(220,245,255,.8)'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.roundRect(minx - pad, miny - pad, maxx - minx + pad * 2, maxy - miny + pad * 2, 10); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(minx, miny + pad); ctx.lineTo(minx + pad * 1.5, miny - pad); ctx.moveTo(maxx, maxy - pad); ctx.lineTo(maxx - pad * 1.2, maxy + pad); ctx.stroke();
+  }
 }
 function drawHead(B) {
   const h = B.P[0], fr = frame(B, 0), R = RAD[0] * B.u * (1 + B.swell * .55);
@@ -4058,6 +4142,7 @@ const PHASES = [
   { name: 'Vehicles', desc: 'Park directly on him. Always open.', always: true, tab: '🚗' },
   { name: 'Wacky', desc: 'Cartoon physics gone wrong. Always open.', always: true, tab: '🤪' },
   { name: 'Environments', desc: 'Reskin the whole box. Always open.', always: true, tab: '📦' },
+  { name: 'Powers', desc: 'Creative physics benders. Always open.', always: true, tab: '✨' },
 ];
 // The shopkeeper. Change anything here to restyle or rename him.
 const SHOPKEEPER = {
@@ -4065,7 +4150,7 @@ const SHOPKEEPER = {
   title: 'Proprietor of Pain',
   skin: '#c98b5b', hair: '#2d1b10', shirt: '#f4a261', apron: '#264653',
   mustache: true, glasses: true, beard: false,
-  hats: ['cap', 'fire', 'army', 'space', 'clown', 'cap', 'clown', 'army'], // one per shop phase: cap | fire | army | space | clown | none
+  hats: ['cap', 'fire', 'army', 'space', 'clown', 'cap', 'clown', 'army', 'space'], // one per shop phase
   lines: {
     hello: ["Welcome, welcome! Everything's for sale.", 'Back again? {n} still standing?', 'Hurt him a little, earn a little.', 'Browse all you like. Touching costs extra.'],
     buy: ['Pleasure doing business!', 'No refunds!', 'Ooh, {n} is gonna feel that.', 'Excellent choice.', 'Enjoy responsibly. Or not.'],
@@ -4335,8 +4420,8 @@ $('ngConfirm').onclick = () => {
 $('btnMute').onclick = () => { muted = !muted; store.set('muted', muted); $('btnMute').textContent = muted ? '🔇' : '🔊'; initAudio(); };
 $('btnClear').onclick = () => { props = []; ents = []; spikes = []; stopRunners(); nurseOnDuty = false; gravIdx = 0; boodie = null; refreshTools(); for (const B of bodies()) { B.decals = []; B.bleed = 0; B.swell = 0; B.pinned = new Array(14).fill(null); } floorStains = []; wallMarks = []; parts = []; grab = null; };
 $('btnReset').onclick = () => {
-  arham = makeBody('arham', W / 2); boodie = null; nurseOnDuty = false;
-  props = []; ents = []; spikes = []; stopRunners(); resetCam(); gravIdx = 0; parts = []; floorStains = []; wallMarks = []; grab = null;
+  arhamScale = 1; arham = makeBody('arham', W / 2); boodie = null; nurseOnDuty = false;
+  props = []; ents = []; spikes = []; stopRunners(); resetCam(); gravIdx = 0; timeScale = 1; timeFxT = 0; quakeT = 0; parts = []; floorStains = []; wallMarks = []; grab = null;
   say(arham, 'up', true);
   refreshTools();
 };
@@ -4402,7 +4487,8 @@ $('gateField').focus();
 let last = performance.now(), acc = 0;
 function loop(now) {
   const real = Math.min(.1, (now - last) / 1000);
-  acc += real; last = now;
+  if (timeFxT > 0) { timeFxT -= real; if (timeFxT <= 0) timeScale = 1; }
+  acc += real * timeScale; last = now;
   const DT = 1 / 60;
   if (!gateOpen) { acc = 0; requestAnimationFrame(loop); return; }
   if (ASC.active) { ASC.frame(Math.max(1 / 60, Math.min(.05, real))); requestAnimationFrame(loop); return; }
