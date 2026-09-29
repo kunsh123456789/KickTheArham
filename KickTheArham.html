@@ -462,6 +462,20 @@ function mix(a, b, t) {
 const cv = $('c'), ctx = cv.getContext('2d');
 let W = 0, H = 0, DPR = 1, U = 60, FLOOR = 0, TOP = 0;
 let WL = 0, WR = 0, floorPx = 0;   // room bounds grow when you zoom out
+let envId = store.get('env', 'home');
+const ENV_THEME = {
+  home:   { wt: '#5b4b8a', wb: '#8e7cc3', ft: '#a8683a', fb: '#6e3f1f', skirt: '#3d2f63', dot: 'rgba(255,255,255,.06)', stripe: 'rgba(255,255,255,.05)' },
+  spike:  { wt: '#3a3f47', wb: '#20242b', ft: '#4a4f57', fb: '#23262c', skirt: '#15181d', dot: 'rgba(255,255,255,.04)', stripe: 'rgba(255,255,255,.03)' },
+  hell:   { wt: '#3a0b0b', wb: '#7a1607', ft: '#ff5a1f', fb: '#8a1a05', skirt: '#2a0604', dot: 'rgba(255,120,40,.10)', stripe: 'rgba(255,80,0,.05)' },
+  ice:    { wt: '#7fbfe6', wb: '#cfeeff', ft: '#dff3ff', fb: '#a9d8f0', skirt: '#8fc7e8', dot: 'rgba(255,255,255,.25)', stripe: 'rgba(255,255,255,.14)' },
+  void:   { wt: '#05060f', wb: '#0b1024', ft: '#0a0a14', fb: '#04040a', skirt: '#111633', dot: 'rgba(255,255,255,.5)', stripe: 'rgba(255,255,255,0)' },
+  toxic:  { wt: '#1c3320', wb: '#2f5a33', ft: '#5aa83a', fb: '#2c6b1f', skirt: '#12240f', dot: 'rgba(150,255,120,.12)', stripe: 'rgba(120,255,80,.05)' },
+  factory:{ wt: '#3a4048', wb: '#4a525c', ft: '#5b626c', fb: '#3a3f47', skirt: '#23262c', dot: 'rgba(255,255,255,.05)', stripe: 'rgba(0,0,0,.08)' },
+  neon:   { wt: '#0a0020', wb: '#18003a', ft: '#12002a', fb: '#08001a', skirt: '#2a0060', dot: 'rgba(180,80,255,.3)', stripe: 'rgba(0,255,220,.05)' },
+  blood:  { wt: '#3a0810', wb: '#6b0f18', ft: '#5a0a12', fb: '#2a0207', skirt: '#20040a', dot: 'rgba(255,40,60,.1)', stripe: 'rgba(120,0,10,.1)' },
+  disco:  { wt: '#2a0a3a', wb: '#0a1a4a', ft: '#2a2a2a', fb: '#101010', skirt: '#000', dot: 'rgba(255,255,255,.15)', stripe: 'rgba(255,255,255,.04)' },
+};
+function setEnv(id) { envId = id; store.set('env', id); buildBg(); }
 let bg = null;
 
 // ---------- state ----------
@@ -564,6 +578,17 @@ const TOOLS = [
   { id: 'tornado', phase: 7, name: 'Tornado', icon: '🌪️', price: 900, desc: 'Sucks him up and spins him silly.' },
   { id: 'magnet', phase: 7, name: 'Giant Magnet', icon: '🧲', price: 1100, desc: 'Yanks him up into the air.' },
   { id: 'whale', phase: 7, name: 'Falling Whale', icon: '🐋', price: 1800, desc: 'A whale plummets from the sky. Squish.' },
+  // Environments (phase 8) — reskin the whole box
+  { id: 'env_home', phase: 8, env: 'home', name: 'Living Room', icon: '🛋️', price: 0, desc: 'The classic purple room.' },
+  { id: 'env_spike', phase: 8, env: 'spike', name: 'Spike Box', icon: '🔩', price: 400, desc: 'Every wall lined with spikes.' },
+  { id: 'env_hell', phase: 8, env: 'hell', name: 'Hell', icon: '🔥', price: 600, desc: 'Lava floor, brimstone walls. He burns.' },
+  { id: 'env_ice', phase: 8, env: 'ice', name: 'Freezer', icon: '❄️', price: 500, desc: 'Slippery frozen box. He slides.' },
+  { id: 'env_void', phase: 8, env: 'void', name: 'The Void', icon: '🌌', price: 700, desc: 'An endless dark starfield.' },
+  { id: 'env_toxic', phase: 8, env: 'toxic', name: 'Toxic Waste', icon: '☣️', price: 650, desc: 'Acid floor eats him alive.' },
+  { id: 'env_factory', phase: 8, env: 'factory', name: 'Factory Floor', icon: '🏭', price: 550, desc: 'Cold industrial steel.' },
+  { id: 'env_neon', phase: 8, env: 'neon', name: 'Neon Grid', icon: '🟪', price: 750, desc: 'Electric walls that zap on touch.' },
+  { id: 'env_blood', phase: 8, env: 'blood', name: 'Blood Pit', icon: '🩸', price: 800, desc: 'A crimson slaughter room.' },
+  { id: 'env_disco', phase: 8, env: 'disco', name: 'Disco', icon: '🪩', price: 900, desc: 'Party lights. Questionable choices.' },
 ];
 
 // ---------- ragdoll definition (units of u, relative to feet on floor) ----------
@@ -624,19 +649,20 @@ function buildBg() {
   bg.width = W * DPR; bg.height = H * DPR;
   const b = bg.getContext('2d');
   b.scale(DPR, DPR);
+  const t = ENV_THEME[envId] || ENV_THEME.home;
   const g = b.createLinearGradient(0, 0, 0, FLOOR);
-  g.addColorStop(0, '#5b4b8a'); g.addColorStop(1, '#8e7cc3');
+  g.addColorStop(0, t.wt); g.addColorStop(1, t.wb);
   b.fillStyle = g; b.fillRect(0, 0, W, FLOOR);
-  b.fillStyle = 'rgba(255,255,255,.05)';
+  b.fillStyle = t.stripe;
   for (let x = 0; x < W; x += 60) b.fillRect(x, 0, 30, FLOOR);
-  b.fillStyle = 'rgba(255,255,255,.06)';
+  b.fillStyle = t.dot;
   for (let y = 30; y < FLOOR - 40; y += 70) for (let x = (y / 70 % 2) * 30 + 15; x < W; x += 60) {
-    b.beginPath(); b.arc(x, y, 5, 0, 7); b.fill();
+    b.beginPath(); b.arc(x, y, envId === 'void' ? rand(1, 2.5) : 5, 0, 7); b.fill();
   }
-  b.fillStyle = '#3d2f63'; b.fillRect(0, FLOOR - 22, W, 22);
+  b.fillStyle = t.skirt; b.fillRect(0, FLOOR - 22, W, 22);
   b.fillStyle = 'rgba(255,255,255,.12)'; b.fillRect(0, FLOOR - 22, W, 3);
   const fg = b.createLinearGradient(0, FLOOR, 0, H);
-  fg.addColorStop(0, '#a8683a'); fg.addColorStop(1, '#6e3f1f');
+  fg.addColorStop(0, t.ft); fg.addColorStop(1, t.fb);
   b.fillStyle = fg; b.fillRect(0, FLOOR, W, H - FLOOR);
   b.strokeStyle = 'rgba(0,0,0,.25)'; b.lineWidth = 2;
   for (let y = FLOOR + 14; y < H; y += 14) { b.beginPath(); b.moveTo(0, y); b.lineTo(W, y); b.stroke(); }
@@ -644,6 +670,65 @@ function buildBg() {
     b.beginPath(); b.moveTo(x, y); b.lineTo(x, y + 14); b.stroke();
   }
   b.fillStyle = 'rgba(0,0,0,.35)'; b.fillRect(0, FLOOR, W, 4);
+}
+// per-frame environmental hazards
+function envTick(dt) {
+  if (envId === 'home') return;
+  for (const B of bodies()) {
+    if (envId === 'spike') B.P.forEach((p, i) => {
+      if (p.x < WL + U * .45 || p.x > WR - U * .45 || p.y < TOP + U * .45 || p.y > FLOOR - U * .4) {
+        if (Math.random() < dt * 4) { hurt(B, 3); woundPoint(B, i, 5); blood(p.x, p.y, 3, .8); if (Math.random() < .3) sfx('squelch'); }
+      }
+    });
+    else if (envId === 'hell') { if (B.P.some(p => p.y > FLOOR - U * .5)) { ignite(B, 1.5); if (Math.random() < dt * 3) hurt(B, 2, 'fire'); } }
+    else if (envId === 'toxic') { if (B.P.some(p => p.y > FLOOR - U * .5) && Math.random() < dt * 4) { hurt(B, 2); const c = bodyCenter(B); spawn('flame', c[0] + rand(-20, 20), FLOOR - 6, rand(-1, 1), -2, .3, 6, '#7fff5a'); } }
+    else if (envId === 'neon') B.P.forEach((p, i) => { if ((p.x < WL + U * .4 || p.x > WR - U * .4) && Math.random() < dt * 3) { hurt(B, 2, 'zap'); B.zapped = Math.max(B.zapped, .3); sparks(p.x, p.y, 3, '#c77dff'); } });
+  }
+}
+function spikeRow(x0, y0, x1, y1, nx, ny) {
+  const len = Math.hypot(x1 - x0, y1 - y0), n = Math.max(2, Math.round(len / (U * .5)));
+  ctx.beginPath();
+  for (let k = 0; k < n; k++) {
+    const t0 = k / n, t1 = (k + 1) / n, tm = (t0 + t1) / 2;
+    ctx.moveTo(x0 + (x1 - x0) * t0, y0 + (y1 - y0) * t0);
+    ctx.lineTo(x0 + (x1 - x0) * tm + nx, y0 + (y1 - y0) * tm + ny);
+    ctx.lineTo(x0 + (x1 - x0) * t1, y0 + (y1 - y0) * t1);
+  }
+  ctx.fill(); ctx.stroke();
+}
+function drawEnvOverlay() {
+  if (envId === 'home') return;
+  const bot = roomBottom();
+  if (envId === 'spike') {
+    ctx.fillStyle = '#c8ccd2'; ctx.strokeStyle = '#5b626c'; ctx.lineWidth = 2; const d = U * .5;
+    spikeRow(WL, FLOOR, WR, FLOOR, 0, -d);          // floor, up
+    spikeRow(WL, TOP, WR, TOP, 0, d);               // ceiling, down
+    spikeRow(WL, TOP, WL, FLOOR, d, 0);             // left, right
+    spikeRow(WR, TOP, WR, FLOOR, -d, 0);            // right, left
+  } else if (envId === 'hell') {
+    const gl = ctx.createLinearGradient(0, FLOOR - U, 0, FLOOR + U);
+    gl.addColorStop(0, 'rgba(255,120,20,0)'); gl.addColorStop(1, 'rgba(255,80,0,.6)');
+    ctx.fillStyle = gl; ctx.fillRect(WL, FLOOR - U, WR - WL, U * 2);
+    ctx.fillStyle = `rgba(255,210,80,${.3 + .2 * Math.sin(time * 4)})`;
+    for (let x = WL + 20; x < WR; x += 70) { const yy = FLOOR + Math.sin(time * 3 + x) * 6; ctx.beginPath(); ctx.arc(x, yy, 6 + Math.sin(time * 5 + x) * 3, 0, 7); ctx.fill(); }
+    if (Math.random() < .4) spawn('flame', rand(WL, WR), FLOOR - rand(0, 6), rand(-1, 1), rand(-3, -1), rand(.3, .7), rand(6, 12), '#ff9f1c');
+  } else if (envId === 'neon') {
+    ctx.strokeStyle = `rgba(0,255,220,${.4 + .2 * Math.sin(time * 6)})`; ctx.lineWidth = 4;
+    ctx.strokeRect(WL + 2, TOP + 2, WR - WL - 4, FLOOR - TOP - 4);
+    ctx.strokeStyle = 'rgba(180,80,255,.25)'; ctx.lineWidth = 1.5;
+    for (let x = WL; x < WR; x += U) { ctx.beginPath(); ctx.moveTo(x, TOP); ctx.lineTo(x, FLOOR); ctx.stroke(); }
+    for (let y = TOP; y < FLOOR; y += U) { ctx.beginPath(); ctx.moveTo(WL, y); ctx.lineTo(WR, y); ctx.stroke(); }
+  } else if (envId === 'void') {
+    ctx.fillStyle = '#fff';
+    for (let i = 0; i < 60; i++) { const x = WL + ((i * 137.5 + time * 10) % (WR - WL)), y = TOP + ((i * 91.3) % (FLOOR - TOP)); ctx.globalAlpha = .3 + .5 * Math.abs(Math.sin(time + i)); ctx.fillRect(x, y, 2, 2); }
+    ctx.globalAlpha = 1;
+  } else if (envId === 'disco') {
+    for (let k = 0; k < 5; k++) {
+      const a = time * .8 + k * 1.256, cx = (WL + WR) / 2;
+      ctx.fillStyle = `hsla(${(time * 80 + k * 72) % 360},90%,60%,.12)`;
+      ctx.beginPath(); ctx.moveTo(cx, TOP); ctx.lineTo(cx + Math.cos(a) * (WR - WL), bot); ctx.lineTo(cx + Math.cos(a) * (WR - WL) + U * 2, bot); ctx.closePath(); ctx.fill();
+    }
+  }
 }
 
 // ---------- audio ----------
@@ -1779,6 +1864,7 @@ function initGore(B) {
   B.gutsOut = false;
   B.attached = new Array(14).fill(true);
   B.pinned = new Array(14).fill(null);
+  B.headGone = false;
 }
 function attachedSet(B) {
   const adj = Array.from({ length: 14 }, () => []);
@@ -1932,19 +2018,58 @@ function stepSpurts(B) {
   }
 }
 // grabbing a broken limb and yanking hard rips it out
+// which limb frame tears when you grab a given joint
+const JOINT_LIMB = { 6: 2, 8: 3, 7: 4, 9: 5, 10: 6, 12: 7, 11: 8, 13: 9 };
+function gripLimb(B, i) {
+  if (JOINT_LIMB[i] !== undefined) return JOINT_LIMB[i];
+  for (const f of [3, 5, 7, 9, 2, 4, 6, 8]) if (!B.gone[f]) return f;   // torso grab: pull off any arm/leg
+  return -1;
+}
+function decapitate(B) {
+  if (B.headGone) return;
+  B.C = B.C.filter(c => !([[1, 0], [0, 1], [0, 2], [2, 0], [0, 3], [3, 0]].some(([a, b]) => c.a === a && c.b === b)));
+  B.headGone = true;
+  const h = B.P[0];
+  B.spurts.push({ i: 1, t: 5 });
+  gibs(h.x, h.y, 10, 1.4, ['flesh', 'flesh', 'bone']); blood(h.x, h.y, 50, 2); wallSplat(h.x, h.y - B.u, 2.5);
+  sfx('rip'); sfx('squelch'); sfx('crack'); shake = Math.max(shake, 22);
+  popText(h.x, h.y - 20, 'DECAPITATED!', '#ff4d5e', 40); hurt(B, 45, 'rip'); knock(B, 0);
+  addVel(h, rand(-3, 3), -4);
+  if (B.kind === 'arham') say(B, 'ripArm', true);
+}
+function idealLen(B, a, b) { return Math.hypot(POSE[a][0] - POSE[b][0], POSE[a][1] - POSE[b][1]) * B.u; }
+// how over-stretched the limb (or neck) under joint i is, and which part tears
+function limbStretch(B, i) {
+  if (i === 0) { const cur = Math.hypot(B.P[1].x - B.P[0].x, B.P[1].y - B.P[0].y); return [cur / (idealLen(B, 1, 0) || 1), 'head']; }
+  let f = JOINT_LIMB[i]; if (f === undefined) f = gripLimb(B, i);
+  if (f < 2) return [1, -1];
+  const [a, b] = LIMBS[f - 2], cur = Math.hypot(B.P[a].x - B.P[b].x, B.P[a].y - B.P[b].y);
+  return [cur / (idealLen(B, a, b) || 1), f];
+}
 function checkYank(dt) {
   if (!grab || grab.type !== 'pt' || !grab.B || grab.i == null) return;
-  const B = grab.B, p = grab.ref;
-  let k = LIMBS.findIndex((L, kk) => L[1] === grab.i && B.broken[kk + 2] && !B.gone[kk + 2]);
-  if (k < 0) k = LIMBS.findIndex((L, kk) => L[0] === grab.i && B.broken[kk + 2] && !B.gone[kk + 2]);
-  // strain builds while the broken limb is dragged fast (a yank), and relaxes when you slow down
+  const B = grab.B, p = grab.ref, i = grab.i;
   const speed = Math.hypot(pointer.x - (grab.lpx ?? pointer.x), pointer.y - (grab.lpy ?? pointer.y)) / B.u;
   grab.lpx = pointer.x; grab.lpy = pointer.y;
-  if (k >= 0 && speed > .08) {
-    grab.strain = (grab.strain || 0) + speed;
-    if (Math.random() < .15) sfx('squelch');
-    if (Math.random() < .3) spawnBlood(p.x, p.y, rand(-2, 2), rand(-2, 1), 2.5);
-    if (grab.strain > 1.6) { dismember(B, k + 2); grab.strain = 0; }
+  // already-broken limb: a fast yank tears it off
+  let k = LIMBS.findIndex((L, kk) => L[1] === i && B.broken[kk + 2] && !B.gone[kk + 2]);
+  if (k < 0) k = LIMBS.findIndex((L, kk) => L[0] === i && B.broken[kk + 2] && !B.gone[kk + 2]);
+  // stretch rip: with another part pinned, pull him taut until he tears apart
+  const anchored = B.pinned.some(x => x);
+  const [ratio, part] = limbStretch(B, i);
+  const stretch = anchored && !B.pinned[i] && ratio > 1.7;
+  if ((k >= 0 && speed > .08) || stretch) {
+    grab.strain = (grab.strain || 0) + (stretch ? dt * (ratio - .6) * 2.2 : speed);
+    if (Math.random() < .25) sfx('squelch');
+    if (Math.random() < .4) spawnBlood(p.x, p.y, rand(-2, 2), rand(-2, 1), 2.5);
+    if (stretch && Math.random() < .3) popText(p.x, p.y - 10, 'STREEETCH…', '#ff8fab', 22);
+    const thr = stretch ? 1 : 1.6;
+    if (grab.strain > thr) {
+      if (k >= 0) dismember(B, k + 2);
+      else if (part === 'head') decapitate(B);
+      else if (part > 0) dismember(B, part);
+      grab.strain = 0;
+    }
   } else grab.strain = Math.max(0, (grab.strain || 0) - dt * 2);
 }
 
@@ -2932,7 +3057,7 @@ const UTILS = [
 ];
 const CONTRAP_EXCLUDE = new Set(['hand', 'fire', 'laser', 'smg', 'pin', 'boodie']);
 function machineActions() {
-  const list = TOOLS.filter(t => unlocked.has(t.id) && !CONTRAP_EXCLUDE.has(t.id)).map(t => ({ id: t.id, name: t.name, icon: t.icon }));
+  const list = TOOLS.filter(t => unlocked.has(t.id) && !t.env && !CONTRAP_EXCLUDE.has(t.id)).map(t => ({ id: t.id, name: t.name, icon: t.icon }));
   return list.concat(UTILS);
 }
 function actionMeta(id) { return machineActions().find(a => a.id === id) || UTILS.find(u => u.id === id) || { id, name: id, icon: '⚙️' }; }
@@ -3123,8 +3248,8 @@ cv.addEventListener('pointerdown', e => {
         // double-click a held part to pin it in place
         const now = performance.now();
         if (lastHandTap && lastHandTap.B === h.B && lastHandTap.i === h.i && now - lastHandTap.t < 350) {
-          h.B.pinned[h.i] = { x: h.B.P[h.i].x, y: h.B.P[h.i].y };
-          sfx('pin'); popText(x, y - 12, 'PINNED!', '#ff5d73', 26); ring(x, y, h.B.u * .5, '#ff5d73');
+          if (h.B.pinned[h.i]) { h.B.pinned[h.i] = null; sfx('pop'); popText(x, y - 12, 'UNPINNED', '#9be564', 24); }
+          else { h.B.pinned[h.i] = { x: h.B.P[h.i].x, y: h.B.P[h.i].y }; sfx('pin'); popText(x, y - 12, 'PINNED!', '#ff5d73', 26); ring(x, y, h.B.u * .5, '#ff5d73'); }
           lastHandTap = null;
         } else {
           lastHandTap = { B: h.B, i: h.i, t: now };
@@ -3260,6 +3385,7 @@ function step(dt) {
   updateRoom();
   updateMeter(dt);
   updateRunners(dt);
+  envTick(dt);
   camKick *= .85;
   if (dmgAcc >= 1 && performance.now() - dmgT > 70) {
     const v = Math.round(dmgAcc), c = dmgCrit ? '#ff3b3b' : v >= 25 ? '#ff7b00' : v >= 10 ? '#ffd84d' : '#ffffff';
@@ -3396,7 +3522,7 @@ function collideWalls(B, p, detect) {
     }
     p.y = FLOOR - p.r;
     p.py = p.y + vy * .25;
-    p.px = p.x - (p.x - p.px) * .75;
+    p.px = p.x - (p.x - p.px) * (envId === 'ice' ? .99 : .75);
   }
   if (p.y - p.r < TOP) {
     const vy = p.y - p.py; p.y = TOP + p.r; p.py = p.y + vy * .3;
@@ -3424,6 +3550,7 @@ function draw() {
   if (shake > .5) ctx.translate(rand(-shake, shake) * .6, rand(-shake, shake) * .6);
   if (camKick > .002) { ctx.translate(camFX, camFY); ctx.scale(1 + camKick, 1 + camKick); ctx.translate(-camFX, -camFY); }
   ctx.drawImage(bg, WL, TOP, WR - WL, roomBottom() - TOP);
+  drawEnvOverlay();
 
   for (const m of wallMarks) {
     ctx.globalAlpha = clamp(m.life / 5, 0, 1);
@@ -3708,9 +3835,14 @@ function drawBuddy(B) {
   for (let k = 0; k < 4; k++) limb(B, k);
   ball(P[8], u * .17, col(B, 'skin')); ball(P[9], u * .17, col(B, 'skin'));
   drawDecals(B, f => f >= 2 && f <= 5);
-  ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = u * .22 + 5;
-  ctx.beginPath(); ctx.moveTo(P[1].x, P[1].y); ctx.lineTo(P[0].x, P[0].y); ctx.stroke();
-  ctx.strokeStyle = col(B, 'skin'); ctx.lineWidth = u * .22; ctx.stroke();
+  if (!B.headGone) {
+    ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = u * .22 + 5;
+    ctx.beginPath(); ctx.moveTo(P[1].x, P[1].y); ctx.lineTo(P[0].x, P[0].y); ctx.stroke();
+    ctx.strokeStyle = col(B, 'skin'); ctx.lineWidth = u * .22; ctx.stroke();
+  } else { // bloody neck stump on the shoulders
+    ctx.fillStyle = '#8d0801'; ctx.beginPath(); ctx.arc(P[1].x, P[1].y, u * .16, 0, 7); ctx.fill();
+    ctx.fillStyle = '#efe6d2'; ctx.beginPath(); ctx.arc(P[1].x, P[1].y, u * .06, 0, 7); ctx.fill();
+  }
   drawHead(B);
 }
 function drawHead(B) {
@@ -3925,6 +4057,7 @@ const PHASES = [
   { name: 'Cartoon Chaos', desc: 'Physics has left the building.' },
   { name: 'Vehicles', desc: 'Park directly on him. Always open.', always: true, tab: '🚗' },
   { name: 'Wacky', desc: 'Cartoon physics gone wrong. Always open.', always: true, tab: '🤪' },
+  { name: 'Environments', desc: 'Reskin the whole box. Always open.', always: true, tab: '📦' },
 ];
 // The shopkeeper. Change anything here to restyle or rename him.
 const SHOPKEEPER = {
@@ -3932,7 +4065,7 @@ const SHOPKEEPER = {
   title: 'Proprietor of Pain',
   skin: '#c98b5b', hair: '#2d1b10', shirt: '#f4a261', apron: '#264653',
   mustache: true, glasses: true, beard: false,
-  hats: ['cap', 'fire', 'army', 'space', 'clown', 'cap', 'clown'], // one per shop phase: cap | fire | army | space | clown | none
+  hats: ['cap', 'fire', 'army', 'space', 'clown', 'cap', 'clown', 'army'], // one per shop phase: cap | fire | army | space | clown | none
   lines: {
     hello: ["Welcome, welcome! Everything's for sale.", 'Back again? {n} still standing?', 'Hurt him a little, earn a little.', 'Browse all you like. Touching costs extra.'],
     buy: ['Pleasure doing business!', 'No refunds!', 'Ooh, {n} is gonna feel that.', 'Excellent choice.', 'Enjoy responsibly. Or not.'],
@@ -3974,7 +4107,7 @@ function renderShop() {
     const owned = unlocked.has(t.id), card = document.createElement('div');
     card.className = 'item' + (owned ? ' owned' : '');
     card.dataset.price = t.price;
-    const label = owned ? (t.spawn ? (boodieActive() ? 'Fighting…' : 'Spawn') : tool === t.id ? 'Equipped ✓' : 'Equip') : `$${t.price}`;
+    const label = owned ? (t.env ? (envId === t.env ? 'Active ✓' : 'Set') : t.spawn ? (boodieActive() ? 'Fighting…' : 'Spawn') : tool === t.id ? 'Equipped ✓' : 'Equip') : `$${t.price}`;
     card.innerHTML = `<div class="iic">${t.icon}</div><div class="inm">${t.name}</div><div class="ids">${t.desc}</div><button class="ibuy">${label}</button>`;
     card.querySelector('button').onclick = () => buyOrEquip(t);
     grid.appendChild(card);
@@ -3990,10 +4123,12 @@ function buyOrEquip(t) {
     store.set('unlocked', [...unlocked]); store.set('bucks', bucks);
     showBucks();
     sfx('buy'); keeperSay('buy');
-    if (!t.spawn) { tool = t.id; }
+    if (t.env) setEnv(t.env);
+    else if (!t.spawn) { tool = t.id; }
     buildTools(); renderShop();
     return;
   }
+  if (t.env) { setEnv(t.env); sfx('pop'); renderShop(); return; }
   if (t.spawn) {
     if (boodieActive()) { sfx('deny'); keeperSay('busy'); return; }
     spawnBoodie(); openShop(false); return;
@@ -4015,7 +4150,7 @@ function buildTools() {
   nurse.addEventListener('click', () => { initAudio(); openNurse(true); });
   box.appendChild(nurse);
   for (const t of TOOLS) {
-    if (!unlocked.has(t.id)) continue;
+    if (!unlocked.has(t.id) || t.env) continue;
     const b = document.createElement('div');
     b.className = 'tool'; b.dataset.id = t.id;
     b.innerHTML = `<div class="ic">${t.icon}</div><div>${t.name}</div>`;

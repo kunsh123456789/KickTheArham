@@ -33,7 +33,8 @@ to regenerate `KickTheArham.html`.
 - Synthesized sound effects (Web Audio API)
 - 🆕 **New Game**: wipes all progress (bucks, unlocks, phases, name, photo) and restarts fresh with no money, after a confirm
 - ⌨️ **Restart combo**: press R three times fast, or Option/Alt+Shift+R (⌘+Shift+R also works on Mac) — works anywhere, even in the liminal mode
-- 📌 **Pin**: nail any body part in place; pin him mid-air and wail on him. Tap a pin again to release it
+- 📌 **Pin**: nail any body part in place; with the ✋ Hand, double-click a held part to pin/unpin it. Pin one part and stretch another far to rip him apart (or tear his head off)
+- 📦 **Environments** (shop): reskin the whole box — Living Room, Spike Box (walls of spikes), Hell (lava floor), Freezer (slippery), The Void, Toxic Waste (acid floor), Factory Floor, Neon Grid (zapping walls), Blood Pit, Disco
 - 🔐 **Vault**: enter the developer password for infinite money (can be turned off again)
 - ✏️ Rename the buddy, 📷 use any photo as his face
 - Progress (bucks, unlocks, name, face) is saved in `localStorage`
