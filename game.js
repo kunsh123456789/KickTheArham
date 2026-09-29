@@ -143,6 +143,7 @@ const LOOKS = {
 };
 let grab = null; // {type:'pt'|'prop', ref, B}
 const pointer = { x: 0, y: 0, down: false, lx: 0, ly: 0 };
+let lastHandTap = null;   // for double-click-to-pin with the Hand
 
 function makeBody(kind, cx) {
   const look = LOOKS[kind], u = U * look.scale;
@@ -2678,8 +2679,18 @@ cv.addEventListener('pointerdown', e => {
       }
       const h = hitAny(x, y, .25);
       if (h) {
-        grab = { type: 'pt', ref: h.B.P[h.i], B: h.B, i: h.i }; knock(h.B, 0); sfx('pop');
-        if (h.B.kind === 'boodie') hurt(h.B, 1); else say(h.B, 'grab');
+        grab = { type: 'pt', ref: h.B.P[h.i], B: h.B, i: h.i }; knock(h.B, 0);
+        // double-click a held part to pin it in place
+        const now = performance.now();
+        if (lastHandTap && lastHandTap.B === h.B && lastHandTap.i === h.i && now - lastHandTap.t < 350) {
+          h.B.pinned[h.i] = { x: h.B.P[h.i].x, y: h.B.P[h.i].y };
+          sfx('pin'); popText(x, y - 12, 'PINNED!', '#ff5d73', 26); ring(x, y, h.B.u * .5, '#ff5d73');
+          lastHandTap = null;
+        } else {
+          lastHandTap = { B: h.B, i: h.i, t: now };
+          sfx('pop');
+          if (h.B.kind === 'boodie') hurt(h.B, 1); else say(h.B, 'grab');
+        }
       }
       break;
     }
