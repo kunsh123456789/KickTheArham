@@ -45,3 +45,13 @@ liminal-space wander: an endless desaturated backrooms hallway with drifting dro
 whispers, corrupted fragment logs to find (▤), and fourth-wall messages. It is a point of no
 return — it persists across reloads. Press **Esc** (or use 🆕 New Game) to sever the connection
 and start over. All the ARG-flavoured text is fiction; no real links, places, or dates.
+
+## Industrial Update — Automation & Utilities
+- **🏭 Factory (contraption builder)**: chain your weapons, gadgets and utilities into an
+  ordered sequence that runs automatically. Example: Gravity → wait 1s → Bomb. Each step
+  has a "then wait X s" delay; reorder with ▲/▼. Target Follow-Arham 🎯 or place a Fixed
+  point 📍 machine in the room. Test ▶, Loop 🔁, and Save 💾 machines (persisted).
+- **Utilities** parts: ⏱️ Wait, 🌀 Gravity →, 🏥 Nurse Heal, 🔄 Reset Buddy, 💢 Big Shake.
+- **Zoom / bigger workspace**: mouse wheel or pinch to zoom, two-finger drag to pan, or the
+  ➕ ➖ ⤢ buttons. Zoom out to fit huge contraptions and vehicles.
+- **Tutorial**: a 6-step guide shows on first opening the Factory (replay with ❔).

@@ -2430,11 +2430,213 @@ const ASC = (() => {
 })();
 
 // ---------- input ----------
+// ================= CAMERA (zoom / pan) + AUTOMATION (contraptions) =================
+let vz = 1, vpx = 0, vpy = 0;
+function applyCam() { ctx.translate(W / 2 + vpx, H / 2 + vpy); ctx.scale(vz, vz); ctx.translate(-W / 2, -H / 2); }
+function toWorld(sx, sy) { return [(sx - (W / 2 + vpx)) / vz + W / 2, (sy - (H / 2 + vpy)) / vz + H / 2]; }
+function clampCam() {
+  vz = clamp(vz, .4, 3);
+  const mx = W * (Math.max(vz, 1)) * .6, my = H * (Math.max(vz, 1)) * .6;
+  vpx = clamp(vpx, -mx, mx); vpy = clamp(vpy, -my, my);
+}
+function zoomAt(factor, sx = W / 2, sy = H / 2) {
+  const [wx, wy] = toWorld(sx, sy);
+  vz *= factor; clampCam();
+  vpx = sx - W / 2 - (wx - W / 2) * vz;
+  vpy = sy - H / 2 - (wy - H / 2) * vz;
+  clampCam(); showZoom();
+}
+function resetCam() { vz = 1; vpx = vpy = 0; showZoom(); }
+function showZoom() { const z = $('zoomTag'); if (z) z.textContent = Math.round(vz * 100) + '%'; }
+const ptrs = new Map();
+let pinch = null;
+function camPointerDown(e) {
+  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (ptrs.size === 2) {
+    const p = [...ptrs.values()];
+    pinch = { d: Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y), mx: (p[0].x + p[1].x) / 2, my: (p[0].y + p[1].y) / 2, z: vz, px: vpx, py: vpy };
+    grab = null; pointer.down = false;
+    return true;
+  }
+  return false;
+}
+function camPointerMove(e) {
+  if (!pinch) return false;
+  if (ptrs.has(e.pointerId)) ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (ptrs.size < 2) return true;
+  const p = [...ptrs.values()], d = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y), mx = (p[0].x + p[1].x) / 2, my = (p[0].y + p[1].y) / 2;
+  vz = clamp(pinch.z * d / pinch.d, .4, 3);
+  vpx = pinch.px + (mx - pinch.mx); vpy = pinch.py + (my - pinch.my);
+  clampCam(); showZoom();
+  return true;
+}
+function camPointerUp(e) { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = null; }
+
+const UTILS = [
+  { id: 'u_wait', name: 'Wait', icon: '⏱️', util: true },
+  { id: 'u_grav', name: 'Gravity →', icon: '🌀', util: true },
+  { id: 'u_heal', name: 'Nurse Heal', icon: '🏥', util: true },
+  { id: 'u_reset', name: 'Reset Buddy', icon: '🔄', util: true },
+  { id: 'u_shake', name: 'Big Shake', icon: '💢', util: true },
+];
+const CONTRAP_EXCLUDE = new Set(['hand', 'fire', 'laser', 'smg', 'pin', 'boodie']);
+function machineActions() {
+  const list = TOOLS.filter(t => unlocked.has(t.id) && !CONTRAP_EXCLUDE.has(t.id)).map(t => ({ id: t.id, name: t.name, icon: t.icon }));
+  return list.concat(UTILS);
+}
+function actionMeta(id) { return machineActions().find(a => a.id === id) || UTILS.find(u => u.id === id) || { id, name: id, icon: '⚙️' }; }
+let machines = store.get('machines', []);
+let runners = [];
+let draft = { name: '', loop: false, target: 'arham', px: 0, py: 0, steps: [] };
+let placingTarget = false;
+function saveMachines() { store.set('machines', machines); }
+function execStep(id, tx, ty) {
+  switch (id) {
+    case 'u_wait': break;
+    case 'u_grav': cycleGravity(); break;
+    case 'u_heal': sendNurse('surgery'); break;
+    case 'u_reset': arham = makeBody('arham', W / 2); refreshTools(); break;
+    case 'u_shake': shake = Math.max(shake, 26); sfx('thud', 1.6); break;
+    default: if (ACTIONS[id]) ACTIONS[id](tx, ty);
+  }
+}
+function runMachine(m) {
+  if (!m.steps.length) { toast('That machine has no steps.'); return; }
+  runners.push({ m, i: 0, t: 0, loops: 0 });
+  toast(`▶ Running "${m.name || 'machine'}"${m.loop ? ' (loop)' : ''}`);
+}
+function stopRunners() { runners = []; }
+function updateRunners(dt) {
+  for (let r = runners.length - 1; r >= 0; r--) {
+    const run = runners[r], m = run.m;
+    run.t -= dt;
+    if (run.t > 0) continue;
+    if (run.i >= m.steps.length) {
+      if (m.loop && run.loops < 9999) { run.i = 0; run.loops++; run.t = .1; continue; }
+      runners.splice(r, 1); continue;
+    }
+    const step = m.steps[run.i];
+    let tx, ty;
+    if (m.target === 'point') { tx = m.px; ty = m.py; } else { const c = bodyCenter(arham); tx = c[0]; ty = c[1]; }
+    execStep(step.id, tx, ty);
+    run.t = Math.max(.05, step.delay || .6);
+    run.i++;
+  }
+}
+function drawMachineNodes() {
+  for (const m of machines) if (m.target === 'point') {
+    const running = runners.some(r => r.m === m);
+    ctx.save(); ctx.translate(m.px, m.py);
+    ctx.fillStyle = running ? '#ffd84d' : '#7d8597'; ctx.strokeStyle = '#111'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.roundRect(-16, -16, 32, 32, 7); ctx.fill(); ctx.stroke();
+    ctx.font = '18px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('⚙️', 0, 1);
+    ctx.restore();
+  }
+}
+function openLab(on) {
+  $('lab').classList.toggle('open', on);
+  $('labScrim').hidden = !on;
+  if (on) { if (!store.get('labTut', false)) startTut(); renderLab(); } else placingTarget = false;
+}
+function renderLab() {
+  const pal = $('labPalette'); pal.innerHTML = '';
+  for (const a of machineActions()) {
+    const b = document.createElement('button');
+    b.className = 'palbtn' + (a.util ? ' util' : '');
+    b.innerHTML = `<span>${a.icon}</span>${a.name}`;
+    b.onclick = () => { draft.steps.push({ id: a.id, delay: a.id === 'u_wait' ? 1 : .6 }); renderSteps(); };
+    pal.appendChild(b);
+  }
+  $('labName').value = draft.name;
+  $('labLoop').classList.toggle('on', draft.loop);
+  $('labLoop').textContent = draft.loop ? '🔁 Loop: ON' : '🔁 Loop: OFF';
+  document.querySelectorAll('#labTarget .seg').forEach(s => s.classList.toggle('on', s.dataset.t === draft.target));
+  renderSteps(); renderSaved();
+}
+function renderSteps() {
+  const box = $('labSteps'); box.innerHTML = '';
+  if (!draft.steps.length) box.innerHTML = '<div class="empty">No steps yet. Tap parts below to add them in order.</div>';
+  draft.steps.forEach((s, i) => {
+    const a = actionMeta(s.id), row = document.createElement('div'); row.className = 'step';
+    row.innerHTML =
+      `<span class="num">${i + 1}</span><span class="sic">${a.icon}</span><span class="snm">${a.name}</span>` +
+      `<label class="dl">then wait <input type="number" min="0" step="0.1" value="${s.delay}"> s</label>` +
+      `<span class="ord"><button class="up">▲</button><button class="dn">▼</button><button class="rm">✕</button></span>`;
+    row.querySelector('input').onchange = e => { s.delay = Math.max(0, +e.target.value || 0); };
+    row.querySelector('.up').onclick = () => { if (i > 0) { [draft.steps[i - 1], draft.steps[i]] = [draft.steps[i], draft.steps[i - 1]]; renderSteps(); } };
+    row.querySelector('.dn').onclick = () => { if (i < draft.steps.length - 1) { [draft.steps[i + 1], draft.steps[i]] = [draft.steps[i], draft.steps[i + 1]]; renderSteps(); } };
+    row.querySelector('.rm').onclick = () => { draft.steps.splice(i, 1); renderSteps(); };
+    box.appendChild(row);
+  });
+}
+function renderSaved() {
+  const box = $('labSaved'); box.innerHTML = '';
+  if (!machines.length) { box.innerHTML = '<div class="empty">No saved machines yet.</div>'; return; }
+  machines.forEach((m, i) => {
+    const row = document.createElement('div'); row.className = 'saved';
+    row.innerHTML = `<span class="snm">${m.name || 'machine ' + (i + 1)}</span><span class="cnt">${m.steps.length} steps ${m.loop ? '🔁' : ''} ${m.target === 'point' ? '📍' : '🎯'}</span>` +
+      `<button class="run">▶</button><button class="edit">✎</button><button class="del">🗑</button>`;
+    row.querySelector('.run').onclick = () => { runMachine(m); openLab(false); };
+    row.querySelector('.edit').onclick = () => { draft = JSON.parse(JSON.stringify(m)); renderLab(); };
+    row.querySelector('.del').onclick = () => { machines.splice(i, 1); saveMachines(); renderSaved(); };
+    box.appendChild(row);
+  });
+}
+function wireLab() {
+  $('labBtn').onclick = () => { initAudio(); openLab(true); };
+  $('labClose').onclick = () => openLab(false);
+  $('labScrim').onclick = () => openLab(false);
+  $('labName').oninput = e => draft.name = e.target.value.slice(0, 20);
+  $('labLoop').onclick = () => { draft.loop = !draft.loop; $('labLoop').classList.toggle('on', draft.loop); $('labLoop').textContent = draft.loop ? '🔁 Loop: ON' : '🔁 Loop: OFF'; };
+  $('labClear').onclick = () => { draft = { name: '', loop: false, target: 'arham', px: 0, py: 0, steps: [] }; renderLab(); };
+  $('labTest').onclick = () => { runMachine({ ...draft }); openLab(false); };
+  $('labSave').onclick = () => {
+    if (!draft.steps.length) { toast('Add some steps first.'); return; }
+    draft.name = draft.name || 'Machine ' + (machines.length + 1);
+    machines.push(JSON.parse(JSON.stringify(draft))); saveMachines(); renderSaved();
+    toast(`💾 Saved "${draft.name}"`);
+  };
+  document.querySelectorAll('#labTarget .seg').forEach(s => s.onclick = () => {
+    draft.target = s.dataset.t;
+    document.querySelectorAll('#labTarget .seg').forEach(x => x.classList.toggle('on', x === s));
+    if (draft.target === 'point') { placingTarget = true; openLab(false); toast('Tap in the room to place the machine.'); }
+  });
+  $('tutSkip').onclick = () => { store.set('labTut', true); $('labTut').hidden = true; };
+  $('tutNext').onclick = tutNext;
+  $('tutBack').onclick = tutBack;
+  $('labHelp').onclick = () => { tutI = 0; showTut(); };
+}
+function placeTargetAt(x, y) { draft.px = x; draft.py = clamp(y, 40, FLOOR - 10); placingTarget = false; openLab(true); toast('Machine point set. Save it!'); }
+const TUT = [
+  ['🏭 Welcome to the Factory', 'Build machines that fire your weapons and gadgets in a set order — automatically. Example: swap gravity, wait, then drop a bomb.'],
+  ['1 · Add steps', 'Tap parts from the palette at the bottom. Each tap adds a step to the sequence, in order, top to bottom.'],
+  ['2 · Set the timing', 'Each step has a "then wait X s" box — how long to pause before the next step runs. Use the ⏱️ Wait part for pure pauses.'],
+  ['3 · Reorder', 'Use ▲ / ▼ to move a step, ✕ to delete it. The list runs from step 1 downward.'],
+  ['4 · Pick a target', 'Follow Arham 🎯 aims every step at him. Fixed point 📍 lets you tap a spot in the room to build a machine there.'],
+  ['5 · Test, Loop & Save', '▶ Test runs it once. 🔁 Loop repeats forever. 💾 Save keeps it in your list. Pinch or scroll to zoom the room out and watch it all go!'],
+];
+let tutI = 0;
+function startTut() { tutI = 0; showTut(); }
+function showTut() {
+  $('labTut').hidden = false;
+  $('tutTitle').textContent = TUT[tutI][0];
+  $('tutBody').textContent = TUT[tutI][1];
+  $('tutDots').textContent = TUT.map((_, i) => i === tutI ? '●' : '○').join(' ');
+  $('tutBack').style.visibility = tutI ? 'visible' : 'hidden';
+  $('tutNext').textContent = tutI === TUT.length - 1 ? 'Start building' : 'Next';
+}
+function tutNext() { if (tutI < TUT.length - 1) { tutI++; showTut(); } else { store.set('labTut', true); $('labTut').hidden = true; } }
+function tutBack() { if (tutI > 0) { tutI--; showTut(); } }
+
+// ---------- input ----------
 cv.addEventListener('pointerdown', e => {
   if (ASC.active) { ASC.pdown(e); return; }
   initAudio();
+  if (camPointerDown(e)) return;
   cv.setPointerCapture(e.pointerId);
-  const x = e.clientX, y = e.clientY;
+  const [x, y] = toWorld(e.clientX, e.clientY);
+  if (placingTarget) { placeTargetAt(x, y); return; }
   Object.assign(pointer, { x, y, lx: x, ly: y, down: true });
   switch (tool) {
     case 'hand': {
@@ -2454,12 +2656,16 @@ cv.addEventListener('pointerdown', e => {
 });
 cv.addEventListener('pointermove', e => {
   if (ASC.active) { ASC.pmove(e); return; }
+  if (camPointerMove(e)) return;
+  const [wx, wy] = toWorld(e.clientX, e.clientY);
   pointer.lx = pointer.x; pointer.ly = pointer.y;
-  pointer.x = e.clientX; pointer.y = e.clientY;
+  pointer.x = wx; pointer.y = wy;
   if (pointer.down && tool === 'knife') doSlice(pointer.lx, pointer.ly, pointer.x, pointer.y);
 });
+cv.addEventListener('wheel', e => { if (ASC.active) return; e.preventDefault(); zoomAt(e.deltaY < 0 ? 1.12 : 1 / 1.12, e.clientX, e.clientY); }, { passive: false });
 function release(e) {
   if (ASC.active) { ASC.pup(e); return; }
+  camPointerUp(e);
   if (grab && grab.B) grab.B.thrownT = 1.5;
   pointer.down = false; grab = null;
 }
@@ -2569,6 +2775,7 @@ function step(dt) {
   time += dt;
   const G = grav();
   updateMeter(dt);
+  updateRunners(dt);
   camKick *= .85;
   if (dmgAcc >= 1 && performance.now() - dmgT > 70) {
     const v = Math.round(dmgAcc), c = dmgCrit ? '#ff3b3b' : v >= 25 ? '#ff7b00' : v >= 10 ? '#ffd84d' : '#ffffff';
@@ -2726,10 +2933,12 @@ function collideWalls(B, p, detect) {
 // ---------- rendering ----------
 function draw() {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  ctx.drawImage(bg, 0, 0, W, H);
+  if (vz !== 1 || vpx || vpy) { ctx.fillStyle = '#0a0a12'; ctx.fillRect(0, 0, W, H); }
   ctx.save();
+  applyCam();
   if (shake > .5) ctx.translate(rand(-shake, shake) * .6, rand(-shake, shake) * .6);
   if (camKick > .002) { ctx.translate(camFX, camFY); ctx.scale(1 + camKick, 1 + camKick); ctx.translate(-camFX, -camFY); }
+  ctx.drawImage(bg, 0, 0, W, H);
 
   for (const m of wallMarks) {
     ctx.globalAlpha = clamp(m.life / 5, 0, 1);
@@ -2769,6 +2978,7 @@ function draw() {
     drawBuddy(B);
     ctx.globalAlpha = 1;
   }
+  drawMachineNodes();
   for (const q of props) drawProp(q);
   for (const e of ents) if (e.d) e.d();
   if (laserBeam) {
@@ -3471,6 +3681,7 @@ $('faceInput').onchange = e => {
   img.src = URL.createObjectURL(f);
   e.target.value = '';
 };
+wireLab(); showZoom();
 $('shopClose').onclick = () => openShop(false);
 $('nurseClose').onclick = () => openNurse(false);
 $('nurseBandage').onclick = () => { $('nurseSay').textContent = pick(NURSE.lines.bandage); sendNurse('bandage'); };
@@ -3501,10 +3712,10 @@ $('ngConfirm').onclick = () => {
   location.reload();
 };
 $('btnMute').onclick = () => { muted = !muted; store.set('muted', muted); $('btnMute').textContent = muted ? '🔇' : '🔊'; initAudio(); };
-$('btnClear').onclick = () => { props = []; ents = []; spikes = []; nurseOnDuty = false; gravIdx = 0; boodie = null; refreshTools(); for (const B of bodies()) { B.decals = []; B.bleed = 0; B.swell = 0; B.pinned = new Array(14).fill(null); } floorStains = []; wallMarks = []; parts = []; grab = null; };
+$('btnClear').onclick = () => { props = []; ents = []; spikes = []; stopRunners(); nurseOnDuty = false; gravIdx = 0; boodie = null; refreshTools(); for (const B of bodies()) { B.decals = []; B.bleed = 0; B.swell = 0; B.pinned = new Array(14).fill(null); } floorStains = []; wallMarks = []; parts = []; grab = null; };
 $('btnReset').onclick = () => {
   arham = makeBody('arham', W / 2); boodie = null; nurseOnDuty = false;
-  props = []; ents = []; spikes = []; gravIdx = 0; parts = []; floorStains = []; wallMarks = []; grab = null;
+  props = []; ents = []; spikes = []; stopRunners(); resetCam(); gravIdx = 0; parts = []; floorStains = []; wallMarks = []; grab = null;
   say(arham, 'up', true);
   refreshTools();
 };
@@ -3519,6 +3730,9 @@ function openVault() {
   if (!infinite) $('vaultField').focus();
 }
 $('btnVault').onclick = () => { initAudio(); openVault(); };
+$('zoomIn').onclick = () => zoomAt(1.2);
+$('zoomOut').onclick = () => zoomAt(1 / 1.2);
+$('zoomReset').onclick = () => resetCam();
 $('vaultCancel').onclick = $('vaultClose').onclick = () => { $('vaultBox').hidden = true; };
 $('vaultBox').onsubmit = e => {
   e.preventDefault();

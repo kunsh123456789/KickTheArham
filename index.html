@@ -32,6 +32,13 @@
     <button id="btnReset" title="Reset buddy">🔄</button>
     <button id="btnNewGame" title="New game (wipe all progress)">🆕</button>
   </div>
+  <div class="btns" id="zoomBtns">
+    <button id="zoomOut" title="Zoom out">➖</button>
+    <span id="zoomTag" title="Zoom">100%</span>
+    <button id="zoomIn" title="Zoom in">➕</button>
+    <button id="zoomReset" title="Reset view">⤢</button>
+    <button id="labBtn" title="Factory: build contraptions">🏭</button>
+  </div>
   <input type="file" id="faceInput" accept="image/*" hidden>
 </div>
 
@@ -67,6 +74,49 @@
   <button class="treat" id="nurseBandage"><span>🩹</span><b>Bandage up</b><small>Stops the bleeding and covers flesh wounds.</small></button>
   <button class="treat" id="nurseSurgery"><span>🏥</span><b>Full surgery</b><small>Sets broken bones, puts ripped-off limbs back, fixes everything.</small></button>
 </div>
+
+<div id="labScrim" hidden></div>
+<aside id="lab" aria-label="Factory">
+  <div class="labhead">
+    <div class="labtitle">🏭 Factory <small>build a contraption</small></div>
+    <button id="labHelp" title="How it works">❔</button>
+    <button id="labClose" aria-label="Close factory">✕</button>
+  </div>
+  <div class="labrow">
+    <input id="labName" placeholder="Machine name" maxlength="20">
+    <button id="labLoop">🔁 Loop: OFF</button>
+  </div>
+  <div class="labrow" id="labTarget">
+    <span class="tlbl">Target:</span>
+    <button class="seg on" data-t="arham">🎯 Follow Arham</button>
+    <button class="seg" data-t="point">📍 Fixed point</button>
+  </div>
+  <div class="labsub">Sequence (runs top → bottom)</div>
+  <div id="labSteps"></div>
+  <div class="labsub">Parts — tap to add a step</div>
+  <div id="labPalette"></div>
+  <div class="labctrls">
+    <button id="labTest" class="primary">▶ Test</button>
+    <button id="labSave" class="primary">💾 Save</button>
+    <button id="labClear">🗑 Clear</button>
+  </div>
+  <div class="labsub">Saved machines</div>
+  <div id="labSaved"></div>
+
+  <div id="labTut" hidden>
+    <div class="tutcard">
+      <div class="tuttitle" id="tutTitle"></div>
+      <div class="tutbody" id="tutBody"></div>
+      <div class="tutdots" id="tutDots"></div>
+      <div class="tutrow">
+        <button id="tutSkip">Skip</button>
+        <span style="flex:1"></span>
+        <button id="tutBack">Back</button>
+        <button id="tutNext" class="primary">Next</button>
+      </div>
+    </div>
+  </div>
+</aside>
 
 <div id="shopScrim" hidden></div>
 <aside id="shop" class="ph1" aria-label="Shop">
