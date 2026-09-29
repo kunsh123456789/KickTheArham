@@ -32,9 +32,11 @@ to regenerate `KickTheArham.html`.
 - Expressions, speech bubbles, bruises, cuts, bullet holes, scorch marks, screen shake
 - Synthesized sound effects (Web Audio API)
 - 🆕 **New Game**: wipes all progress (bucks, unlocks, phases, name, photo) and restarts fresh with no money, after a confirm
+- ⌨️ **Weapon keybinds**: press 1–0 to switch weapons; assign each key in the ⌨️ panel
+- **Hold + P**: while holding a body part with the Hand, press P to pin/unpin it
 - ⌨️ **Restart combo**: press R three times fast, or Option/Alt+Shift+R (⌘+Shift+R also works on Mac) — works anywhere, even in the liminal mode
 - 📌 **Pin**: nail any body part in place; with the ✋ Hand, double-click a held part to pin/unpin it. Pin one part and stretch another far to rip him apart (or tear his head off)
-- ✨ **Powers** (shop): creative physics benders, not just attacks — ⏳ Slow-Mo, ⏩ Fast Forward, ⏸️ Time Freeze (locks him mid-air), 🎈 Balloon (floats him up), 🔬 Shrink / 🔎 Embiggen / 📏 Un-size, 🕺 Dance Fever, 🌎 Earthquake. They also work as contraption steps.
+- ✨ **Powers** (shop): creative physics benders, not just attacks — ⏳ Slow-Mo, ⏩ Fast Forward, ⏸️ Time Freeze (locks him mid-air), 🎈 Balloon (floats him up), 🔬 Shrink / 🔎 Embiggen / 📏 Un-size, 🕺 Dance Fever, 🌎 Earthquake, ⏪ Rewind (snaps him back in time), 👥 Clone (spawn duplicate Arhams), 🧘 Levitate (zero-g hold — pose his limbs). They also work as contraption steps.
 - 📦 **Environments** (shop): reskin the whole box — Living Room, Spike Box (walls of spikes), Hell (lava floor), Freezer (slippery), The Void, Toxic Waste (acid floor), Factory Floor, Neon Grid (zapping walls), Blood Pit, Disco
 - 🔐 **Vault**: enter the developer password for infinite money (can be turned off again)
 - ✏️ Rename the buddy, 📷 use any photo as his face
