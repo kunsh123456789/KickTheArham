@@ -283,6 +283,22 @@ body.asc #c { image-rendering: pixelated; }
 .tutrow .primary { background: #ffd84d; }
 @media (max-width: 560px) { #zoomTag { display: none; } }
 
+/* stop-machines button */
+#stopLoop {
+  position: fixed; left: 50%; transform: translateX(-50%); z-index: 18;
+  bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  background: #ff4d5e; color: #fff; font-weight: 900; font-size: 15px;
+  border: 3px solid #000; border-radius: 999px; box-shadow: 0 4px 0 #000;
+  padding: 8px 18px; cursor: pointer;
+}
+#stopLoop:active { transform: translateX(-50%) translateY(2px); box-shadow: 0 2px 0 #000; }
+body.asc #stopLoop { display: none !important; }
+/* factory step config row */
+.step { flex-direction: column; align-items: stretch; gap: 4px; }
+.steptop { display: flex; align-items: center; gap: 6px; }
+.stepcfg { display: flex; flex-wrap: wrap; gap: 6px 10px; padding-left: 24px; }
+.stepcfg .dl input { width: 46px; }
+
 </style>
 </head>
 <body>
@@ -328,6 +344,7 @@ body.asc #c { image-rendering: pixelated; }
 </div>
 
 <div id="tools"></div>
+<button id="stopLoop" hidden>⏹ Stop machines</button>
 <div id="toast"></div>
 
 <form id="vaultBox" class="dialog" hidden>
@@ -444,6 +461,7 @@ function mix(a, b, t) {
 // ---------- canvas ----------
 const cv = $('c'), ctx = cv.getContext('2d');
 let W = 0, H = 0, DPR = 1, U = 60, FLOOR = 0, TOP = 0;
+let WL = 0, WR = 0, floorPx = 0;   // room bounds grow when you zoom out
 let bg = null;
 
 // ---------- state ----------
@@ -590,7 +608,8 @@ function resize() {
   cv.width = W * DPR; cv.height = H * DPR;
   const toolsH = $('tools').offsetHeight || 90;
   TOP = 0;
-  FLOOR = H - toolsH - 8;
+  floorPx = H - toolsH - 8;
+  FLOOR = floorPx; WL = 0; WR = W;
   U = Math.max(28, Math.min((FLOOR - 70) / 5.6, W / 5.2));
   buildBg();
   if (!arham || Math.abs(oldU - U) > 1) {
@@ -1130,7 +1149,7 @@ function doFire(dt) {
 // ---------- Boodie ----------
 function spawnBoodie() {
   const [ax] = bodyCenter(arham);
-  const x = ax < W / 2 ? W - U * 1.3 : U * 1.3;
+  const x = ax < (WL + WR) / 2 ? WR - U * 1.3 : WL + U * 1.3;
   boodie = makeBody('boodie', x);
   boodie.ai.side = ax > x ? 1 : -1;
   boodie.ai.cd = .8;
@@ -1168,7 +1187,7 @@ function boodieAI(B, dt) {
   const aDown = arham.stand < .5 || arham.P[0].y > FLOOR - u * 2.5;
   if (!ai.atk && Math.abs(ax - ai.x) > 6) ai.side = ax > ai.x ? 1 : -1;
   const want = aDown ? u * 1.05 : u * 1.75;
-  const goal = clamp(ax - ai.side * want, u * 1.2, W - u * 1.2);
+  const goal = clamp(ax - ai.side * want, WL + u * 1.2, WR - u * 1.2);
   let moving = false;
   if (!ai.atk) {
     const d = goal - ai.x;
@@ -2869,8 +2888,16 @@ function zoomAt(factor, sx = W / 2, sy = H / 2) {
   vpy = sy - H / 2 - (wy - H / 2) * vz;
   clampCam(); showZoom();
 }
-function resetCam() { vz = 1; vpx = vpy = 0; showZoom(); }
+function resetCam() { vz = 1; vpx = vpy = 0; showZoom(); updateRoom(); }
 function showZoom() { const z = $('zoomTag'); if (z) z.textContent = Math.round(vz * 100) + '%'; }
+// zooming out (vz<1) grows the room around its centre, so Arham gets a bigger space
+function updateRoom() {
+  WL = W / 2 - (W / 2) / vz;
+  WR = W / 2 + (W / 2) / vz;
+  TOP = H / 2 - (H / 2) / vz;
+  FLOOR = H / 2 + (floorPx - H / 2) / vz;
+}
+function roomBottom() { return H / 2 + (H - H / 2) / vz; }
 const ptrs = new Map();
 let pinch = null;
 function camPointerDown(e) {
@@ -2930,6 +2957,7 @@ function runMachine(m) {
 }
 function stopRunners() { runners = []; }
 function updateRunners(dt) {
+  const sb = $('stopLoop'); if (sb) sb.hidden = runners.length === 0;
   for (let r = runners.length - 1; r >= 0; r--) {
     const run = runners[r], m = run.m;
     run.t -= dt;
@@ -2942,8 +2970,10 @@ function updateRunners(dt) {
     let tx, ty;
     if (m.target === 'point') { tx = m.px; ty = m.py; } else { const c = bodyCenter(arham); tx = c[0]; ty = c[1]; }
     execStep(step.id, tx, ty);
-    run.t = Math.max(.05, step.delay || .6);
-    run.i++;
+    if (run.rem === undefined) run.rem = Math.max(1, step.rep || 1);
+    run.rem--;
+    if (run.rem > 0) { run.t = Math.max(.01, step.every || .1); }  // fire this step again on its interval
+    else { run.t = Math.max(0, step.delay || 0); run.i++; run.rem = undefined; }
   }
 }
 function drawMachineNodes() {
@@ -2954,6 +2984,18 @@ function drawMachineNodes() {
     ctx.beginPath(); ctx.roundRect(-16, -16, 32, 32, 7); ctx.fill(); ctx.stroke();
     ctx.font = '18px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText('⚙️', 0, 1);
+    ctx.restore();
+  }
+  // indicator for the machine point being placed/edited in the builder
+  if (draft.target === 'point' && (draft.px || draft.py) && ($('lab').classList.contains('open') || placingTarget)) {
+    const x = draft.px, y = draft.py, p = .5 + .5 * Math.sin(time * 5), r = 18 + p * 6;
+    ctx.save(); ctx.strokeStyle = '#ffd84d'; ctx.lineWidth = 3; ctx.globalAlpha = .6 + p * .4;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x - r - 6, y); ctx.lineTo(x - r + 6, y); ctx.moveTo(x + r - 6, y); ctx.lineTo(x + r + 6, y);
+    ctx.moveTo(x, y - r - 6); ctx.lineTo(x, y - r + 6); ctx.moveTo(x, y + r - 6); ctx.lineTo(x, y + r + 6); ctx.stroke();
+    ctx.globalAlpha = 1; ctx.fillStyle = '#ffd84d'; ctx.beginPath(); ctx.arc(x, y, 5, 0, 7); ctx.fill();
+    ctx.font = '900 12px "Trebuchet MS", sans-serif'; ctx.textAlign = 'center'; ctx.lineWidth = 4; ctx.strokeStyle = '#000';
+    ctx.strokeText('⚙ MACHINE', x, y - r - 10); ctx.fillText('⚙ MACHINE', x, y - r - 10);
     ctx.restore();
   }
 }
@@ -2968,7 +3010,7 @@ function renderLab() {
     const b = document.createElement('button');
     b.className = 'palbtn' + (a.util ? ' util' : '');
     b.innerHTML = `<span>${a.icon}</span>${a.name}`;
-    b.onclick = () => { draft.steps.push({ id: a.id, delay: a.id === 'u_wait' ? 1 : .6 }); renderSteps(); };
+    b.onclick = () => { draft.steps.push({ id: a.id, delay: a.id === 'u_wait' ? 1 : .6, rep: 1, every: .1 }); renderSteps(); };
     pal.appendChild(b);
   }
   $('labName').value = draft.name;
@@ -2981,12 +3023,19 @@ function renderSteps() {
   const box = $('labSteps'); box.innerHTML = '';
   if (!draft.steps.length) box.innerHTML = '<div class="empty">No steps yet. Tap parts below to add them in order.</div>';
   draft.steps.forEach((s, i) => {
+    if (s.rep === undefined) s.rep = 1; if (s.every === undefined) s.every = .1;
     const a = actionMeta(s.id), row = document.createElement('div'); row.className = 'step';
     row.innerHTML =
-      `<span class="num">${i + 1}</span><span class="sic">${a.icon}</span><span class="snm">${a.name}</span>` +
-      `<label class="dl">then wait <input type="number" min="0" step="0.1" value="${s.delay}"> s</label>` +
-      `<span class="ord"><button class="up">▲</button><button class="dn">▼</button><button class="rm">✕</button></span>`;
-    row.querySelector('input').onchange = e => { s.delay = Math.max(0, +e.target.value || 0); };
+      `<div class="steptop"><span class="num">${i + 1}</span><span class="sic">${a.icon}</span><span class="snm">${a.name}</span>` +
+      `<span class="ord"><button class="up">▲</button><button class="dn">▼</button><button class="rm">✕</button></span></div>` +
+      `<div class="stepcfg">` +
+      `<label class="dl">repeat <input class="rp" type="number" min="1" step="1" value="${s.rep}">×</label>` +
+      `<label class="dl">every <input class="ev" type="number" min="0.01" step="0.01" value="${s.every}"> s</label>` +
+      `<label class="dl">then wait <input class="dl2" type="number" min="0" step="0.1" value="${s.delay}"> s</label>` +
+      `</div>`;
+    row.querySelector('.rp').onchange = e => { s.rep = Math.max(1, Math.round(+e.target.value || 1)); };
+    row.querySelector('.ev').onchange = e => { s.every = Math.max(0.01, +e.target.value || .1); };
+    row.querySelector('.dl2').onchange = e => { s.delay = Math.max(0, +e.target.value || 0); };
     row.querySelector('.up').onclick = () => { if (i > 0) { [draft.steps[i - 1], draft.steps[i]] = [draft.steps[i], draft.steps[i - 1]]; renderSteps(); } };
     row.querySelector('.dn').onclick = () => { if (i < draft.steps.length - 1) { [draft.steps[i + 1], draft.steps[i]] = [draft.steps[i], draft.steps[i + 1]]; renderSteps(); } };
     row.querySelector('.rm').onclick = () => { draft.steps.splice(i, 1); renderSteps(); };
@@ -3034,8 +3083,8 @@ function placeTargetAt(x, y) { draft.px = x; draft.py = clamp(y, 40, FLOOR - 10)
 const TUT = [
   ['🏭 Welcome to the Factory', 'Build machines that fire your weapons and gadgets in a set order — automatically. Example: swap gravity, wait, then drop a bomb.'],
   ['1 · Add steps', 'Tap parts from the palette at the bottom. Each tap adds a step to the sequence, in order, top to bottom.'],
-  ['2 · Set the timing', 'Each step has a "then wait X s" box — how long to pause before the next step runs. Use the ⏱️ Wait part for pure pauses.'],
-  ['3 · Reorder', 'Use ▲ / ▼ to move a step, ✕ to delete it. The list runs from step 1 downward.'],
+  ['2 · Timing & repeat', 'Each step can repeat N× on its own interval (down to 0.01s for machine-gun spam), then wait X s before the next step. Use ⏱️ Wait for pure pauses.'],
+  ['3 · Reorder', 'Use ▲ / ▼ to move a step, ✕ to delete it. The list runs from step 1 downward. Loops run forever — the red ⏹ Stop machines button halts them.'],
   ['4 · Pick a target', 'Follow Arham 🎯 aims every step at him. Fixed point 📍 lets you tap a spot in the room to build a machine there.'],
   ['5 · Test, Loop & Save', '▶ Test runs it once. 🔁 Loop repeats forever. 💾 Save keeps it in your list. Pinch or scroll to zoom the room out and watch it all go!'],
 ];
@@ -3138,7 +3187,7 @@ function stepBody(B, dt, G) {
     else if (!(grab && grab.B === B) && gravDown() && B.sinceHurt > 1.3 && B.pain < 70 && B.onFire <= 0 && B.zapped <= 0) B.stand = Math.min(1, B.stand + dt * .6);
     if (wasDown && B.stand >= .5 && Math.random() < .5) say(B, 'up');
     if (gravDown() && B.stand > .01) {
-      const cx = clamp((P[4].x + P[5].x) / 2, u * 1.2, W - u * 1.2), sway = Math.sin(time * 1.3) * u * .06;
+      const cx = clamp((P[4].x + P[5].x) / 2, WL + u * 1.2, WR - u * 1.2), sway = Math.sin(time * 1.3) * u * .06;
       B.targets = POSE.map((q, i) => [cx + q[0] * u + (i <= 1 ? sway : 0), FLOOR + q[1] * u, i >= 12 ? .2 : i <= 5 ? .15 : i >= 10 ? .12 : .02]);
     }
   }
@@ -3197,6 +3246,7 @@ function collideBodies(A, B) {
 function step(dt) {
   time += dt;
   const G = grav();
+  updateRoom();
   updateMeter(dt);
   updateRunners(dt);
   camKick *= .85;
@@ -3242,8 +3292,8 @@ function step(dt) {
       q.y = FLOOR - q.r; q.py = q.y + vy2 * q.bounce;
       q.px = q.x - (q.x - q.px) * q.fric;
     }
-    if (q.x - q.r < 0) { const vx2 = q.x - q.px; q.x = q.r; q.px = q.x + vx2 * .5; }
-    if (q.x + q.r > W) { const vx2 = q.x - q.px; q.x = W - q.r; q.px = q.x + vx2 * .5; }
+    if (q.x - q.r < WL) { const vx2 = q.x - q.px; q.x = WL + q.r; q.px = q.x + vx2 * .5; }
+    if (q.x + q.r > WR) { const vx2 = q.x - q.px; q.x = WR - q.r; q.px = q.x + vx2 * .5; }
     q.ang += (q.x - q.px) / q.r * (HEAVY[q.type] ? .1 : 1);
     if (HEAVY[q.type]) q.ang *= .9;
     if (q.fuse > 0) {
@@ -3341,7 +3391,7 @@ function collideWalls(B, p, detect) {
     const vy = p.y - p.py; p.y = TOP + p.r; p.py = p.y + vy * .3;
     if (detect && -vy > u * .25 && p.hitCd <= 0) { p.hitCd = .25; sfx('thud'); hurt(B, -vy / u * 8); }
   }
-  for (const [edge, s] of [[p.r, 1], [W - p.r, -1]]) {
+  for (const [edge, s] of [[WL + p.r, 1], [WR - p.r, -1]]) {
     if ((p.x - edge) * s < 0) {
       const vx = p.x - p.px;
       if (detect && Math.abs(vx) > u * .25 && p.hitCd <= 0) {
@@ -3355,13 +3405,14 @@ function collideWalls(B, p, detect) {
 
 // ---------- rendering ----------
 function draw() {
+  updateRoom();
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   if (vz !== 1 || vpx || vpy) { ctx.fillStyle = '#0a0a12'; ctx.fillRect(0, 0, W, H); }
   ctx.save();
   applyCam();
   if (shake > .5) ctx.translate(rand(-shake, shake) * .6, rand(-shake, shake) * .6);
   if (camKick > .002) { ctx.translate(camFX, camFY); ctx.scale(1 + camKick, 1 + camKick); ctx.translate(-camFX, -camFY); }
-  ctx.drawImage(bg, 0, 0, W, H);
+  ctx.drawImage(bg, WL, TOP, WR - WL, roomBottom() - TOP);
 
   for (const m of wallMarks) {
     ctx.globalAlpha = clamp(m.life / 5, 0, 1);
@@ -4105,6 +4156,7 @@ $('faceInput').onchange = e => {
   e.target.value = '';
 };
 wireLab(); showZoom();
+$('stopLoop').onclick = () => { stopRunners(); toast('⏹ Machines stopped'); };
 $('shopClose').onclick = () => openShop(false);
 $('nurseClose').onclick = () => openNurse(false);
 $('nurseBandage').onclick = () => { $('nurseSay').textContent = pick(NURSE.lines.bandage); sendNurse('bandage'); };

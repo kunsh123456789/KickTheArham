@@ -49,9 +49,9 @@ and start over. All the ARG-flavoured text is fiction; no real links, places, or
 ## Industrial Update — Automation & Utilities
 - **🏭 Factory (contraption builder)**: chain your weapons, gadgets and utilities into an
   ordered sequence that runs automatically. Example: Gravity → wait 1s → Bomb. Each step
-  has a "then wait X s" delay; reorder with ▲/▼. Target Follow-Arham 🎯 or place a Fixed
+  can repeat N× on its own interval (down to 0.01s), then wait X s; reorder with ▲/▼. A red ⏹ Stop button halts running loops. Target Follow-Arham 🎯 or place a Fixed
   point 📍 machine in the room. Test ▶, Loop 🔁, and Save 💾 machines (persisted).
 - **Utilities** parts: ⏱️ Wait, 🌀 Gravity →, 🏥 Nurse Heal, 🔄 Reset Buddy, 💢 Big Shake.
 - **Zoom / bigger workspace**: mouse wheel or pinch to zoom, two-finger drag to pan, or the
-  ➕ ➖ ⤢ buttons. Zoom out to fit huge contraptions and vehicles.
+  ➕ ➖ ⤢ buttons. Zooming out actually enlarges Arham's room (walls and floor push out) so you get more space to build.
 - **Tutorial**: a 6-step guide shows on first opening the Factory (replay with ❔).

@@ -275,3 +275,19 @@ body.asc #c { image-rendering: pixelated; }
 .tutrow button { font: inherit; font-weight: 800; padding: 8px 14px; border: 3px solid #000; border-radius: 10px; background: #eee; cursor: pointer; }
 .tutrow .primary { background: #ffd84d; }
 @media (max-width: 560px) { #zoomTag { display: none; } }
+
+/* stop-machines button */
+#stopLoop {
+  position: fixed; left: 50%; transform: translateX(-50%); z-index: 18;
+  bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  background: #ff4d5e; color: #fff; font-weight: 900; font-size: 15px;
+  border: 3px solid #000; border-radius: 999px; box-shadow: 0 4px 0 #000;
+  padding: 8px 18px; cursor: pointer;
+}
+#stopLoop:active { transform: translateX(-50%) translateY(2px); box-shadow: 0 2px 0 #000; }
+body.asc #stopLoop { display: none !important; }
+/* factory step config row */
+.step { flex-direction: column; align-items: stretch; gap: 4px; }
+.steptop { display: flex; align-items: center; gap: 6px; }
+.stepcfg { display: flex; flex-wrap: wrap; gap: 6px 10px; padding-left: 24px; }
+.stepcfg .dl input { width: 46px; }
